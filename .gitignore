@@ -1,0 +1,41 @@
+# Ignore Unity-specific folders
+[Tt]emp/
+[Tt]emp/*
+
+# Ignore the Library folder (contains temporary and cached files)
+Library/
+Library/*
+
+# Ignore build directories (where Unity generates compiled versions of the game)
+Build/
+Builds/
+
+# Ignore Unity's logs and crash dumps
+*.log
+*.bak
+*.pidb
+*.userprefs
+*.suo
+*.swp
+*.pidb.meta
+
+# Ignore system-specific files
+.DS_Store   # macOS
+Thumbs.db   # Windows
+
+# Ignore VSCode workspace settings
+.vscode/
+
+# Ignore JetBrains IDE settings
+.idea/
+
+# Ignore Unity's asset cache
+*.mdb
+*.pdb
+*.apk
+*.ipa
+
+# Ignore Unity's visual studio project files
+*.csproj
+*.sln
+*.user

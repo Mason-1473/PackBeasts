@@ -41,6 +41,12 @@ MonoBehaviour:
   - RespawnSpaceship
   - StartCountdownRPC
   - BeginCountdown
+  - EnterJudgement
+  - KillPlayer
+  - RegisterVote
+  - SyncPhase
+  - ExecuteAbility
+  - SyncRoleAssignments
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 0

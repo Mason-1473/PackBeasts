@@ -11,7 +11,10 @@ public class WaitingRoomManager : MonoBehaviourPunCallbacks
 {
     public Vector3 spawnCenter = Vector3.zero;
     public float spawnRadius = 5f;
-    public int maxPlayers = 20;
+    public int maxPlayers = 20; //change this to 20 later
+
+    [SerializeField] private RoleManager roleManager;
+    [SerializeField] private GameManager gameManager; // Reference to GameManager
 
 #if TMPRO
     [SerializeField] private TMP_Text statusText;
@@ -21,12 +24,25 @@ public class WaitingRoomManager : MonoBehaviourPunCallbacks
 
     void Start()
     {
+        if (!PhotonNetwork.InRoom)
+        {
+            Debug.LogError("Not in a Photon room. Cannot instantiate player.");
+            UpdateStatus("Error: Not connected to a room.");
+            return;
+        }
+
         Vector3 randomOffset = Random.insideUnitSphere;
         randomOffset.y = 0;
         randomOffset = randomOffset.normalized * Random.Range(0f, spawnRadius);
         Vector3 spawnPos = spawnCenter + randomOffset;
 
-        PhotonNetwork.Instantiate("PlayerPrefab", spawnPos, Quaternion.identity);
+        GameObject player = PhotonNetwork.Instantiate("PlayerPrefab", spawnPos, Quaternion.identity);
+        if (player == null)
+        {
+            Debug.LogError("Failed to instantiate PlayerPrefab. Ensure it exists in Assets/Resources.");
+            UpdateStatus("Error: Failed to spawn player.");
+            return;
+        }
 
         UpdateStatus($"Waiting for players... {PhotonNetwork.CurrentRoom.PlayerCount}/{maxPlayers}");
 
@@ -51,6 +67,14 @@ public class WaitingRoomManager : MonoBehaviourPunCallbacks
         if (PhotonNetwork.CurrentRoom.PlayerCount >= maxPlayers)
         {
             PhotonNetwork.CurrentRoom.IsOpen = false;
+            if (roleManager != null)
+            {
+                roleManager.AssignRolesToPlayers();
+            }
+            else
+            {
+                Debug.LogError("RoleManager reference is null in WaitingRoomManager!");
+            }
             photonView.RPC(nameof(BeginCountdown), RpcTarget.All);
         }
     }
@@ -72,10 +96,13 @@ public class WaitingRoomManager : MonoBehaviourPunCallbacks
         }
 
         UpdateStatus("Starting!");
-
-        if (PhotonNetwork.IsMasterClient)
+        if (gameManager != null)
         {
-            PhotonNetwork.LoadLevel("GameScene"); 
+            gameManager.StartGame();
+        }
+        else
+        {
+            Debug.LogError("GameManager reference is null in WaitingRoomManager!");
         }
     }
 

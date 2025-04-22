@@ -557,7 +557,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   totalRoles: 20
   roleUIPrefab: {fileID: 417774516}
-  uiParent: {fileID: 0}
+  uiParent: {fileID: 2087060747}
 --- !u!4 &1889166234
 Transform:
   m_ObjectHideFlags: 0

@@ -27,7 +27,7 @@ public class PlayerController : MonoBehaviourPunCallbacks
         if (!photonView.IsMine)
         {
             enabled = false;
-            rb.bodyType = RigidbodyType2D.Kinematic; // Updated to use bodyType
+            rb.bodyType = RigidbodyType2D.Kinematic; 
         }
     }
 

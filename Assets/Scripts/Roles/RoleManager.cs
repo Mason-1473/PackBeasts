@@ -13,10 +13,13 @@ public class RoleManager : MonoBehaviourPunCallbacks
     private Dictionary<int, int> abilityUsageCounts;
     private Dictionary<int, string> investigationResults; //detective
     private Dictionary<int, string> visionResults; //sage
-    private Dictionary<int, int> synthesisProgress; //doctor
+    private Dictionary<int, int> synthesisProgress; //scientist
     private Dictionary<int, int> killAttemptRecords; //sage
     private Dictionary<int, string> cacheResults; //oracle
 
+    //roles completed: Detective, Sage, Oracle
+    //roles worked on: Vigilante, Scientist, Eclipse
+    //roles to be started: Arbiter, Revenant, Radiant, Fallicil, Traitor
     void Awake()
     {
         allRoles = Resources.LoadAll<RoleAsset>("Roles").ToList();
@@ -437,7 +440,7 @@ public class RoleManager : MonoBehaviourPunCallbacks
         if (!playerRoleAssignments.TryGetValue(targetActorNumber, out RoleAsset targetRole))
             return "Target not found.";
 
-        return "";
+        return $"Your target's role is {targetRole.roleName}";
     }
 
     string GetIntrudeResult(int targetActorNumber)

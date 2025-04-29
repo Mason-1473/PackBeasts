@@ -18,11 +18,11 @@ public class GameManager : MonoBehaviourPunCallbacks
     public float votingPhaseDuration = 60f;    // 1 minute
     public float duskPhaseDuration = 30f;       // 30 seconds
     public float nightPhaseDuration = 30f;      // 30 seconds
+    public int dayCount { get; private set; } = 0; // Public read-only day count
 
     private List<int> playersInJudgement = new List<int>(); // ActorNumbers of players in Judgement
     private int currentJudgementPlayer = -1; // ActorNumber of player currently being judged
     private Dictionary<int, int> votes = new Dictionary<int, int>(); // ActorNumber -> voted ActorNumber
-    private int dayCount = 0;
 
     void Awake()
     {
@@ -229,6 +229,16 @@ public class GameManager : MonoBehaviourPunCallbacks
         yield return new WaitForSeconds(nightPhaseDuration);
         if (PhotonNetwork.IsMasterClient)
         {
+            // Clean up old kill attempts before advancing the day
+            RoleManager roleManager = FindObjectOfType<RoleManager>();
+            if (roleManager != null)
+            {
+                roleManager.CleanUpOldKillAttempts(dayCount);
+            }
+            else
+            {
+                Debug.LogWarning("RoleManager not found in scene for kill attempt cleanup.");
+            }
             dayCount++;
             currentPhase = GamePhase.Day;
             currentSubPhase = DaySubPhase.Discussion;
@@ -239,7 +249,6 @@ public class GameManager : MonoBehaviourPunCallbacks
 
     void CheckWinConditions()
     {
-        // To be implemented after role system is fully set up
-        // Check Dominion, Pack, Neutral Killers, Outsiders win conditions
+        //tbc
     }
 }

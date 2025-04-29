@@ -24,6 +24,13 @@ public class NetworkManager : MonoBehaviourPunCallbacks
 
         Instance = this;
         DontDestroyOnLoad(gameObject); // Keep across scene loads
+
+    if (FindObjectsOfType<NetworkManager>().Length > 1)
+    {
+        Destroy(gameObject);
+        return;
+    }
+    DontDestroyOnLoad(gameObject);
     }
 
     [SerializeField] private Button joinGameButton;
@@ -43,7 +50,6 @@ public class NetworkManager : MonoBehaviourPunCallbacks
     private TypedLobby gameLobby = new TypedLobby("GameLobby", LobbyType.Default);
 
     void Start() {
-    DontDestroyOnLoad(gameObject); // Keep NetworkManager across scenes
     if (joinGameButton != null) joinGameButton.interactable = false;
     if (createGameButton != null) createGameButton.interactable = false;
     PhotonNetwork.AutomaticallySyncScene = true;

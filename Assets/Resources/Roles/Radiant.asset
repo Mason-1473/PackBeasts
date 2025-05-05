@@ -13,8 +13,16 @@ MonoBehaviour:
   m_Name: Radiant
   m_EditorClassIdentifier: 
   roleName: Radiant
+  icon: {fileID: 21300000, guid: 14b9666886f65ea41ab1b4e0aa54df39, type: 3}
   category: 1
   isUnique: 0
-  isAnalysis: 0
-  pairedRole: {fileID: 0}
-  icon: {fileID: 21300000, guid: 14b9666886f65ea41ab1b4e0aa54df39, type: 3}
+  pairedRole: 0
+  pairedWith: {fileID: 0}
+  dayAbility: 0
+  duskAbility1: 22
+  duskAbility2: 0
+  nightAbility: 0
+  dayAbilityUsageLimit1: 0
+  duskAbilityUsageLimit1: 99
+  duskAbilityUsageLimit2: 0
+  nightAbilityUsageLimit1: 0

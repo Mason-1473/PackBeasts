@@ -13,8 +13,16 @@ MonoBehaviour:
   m_Name: Scientist
   m_EditorClassIdentifier: 
   roleName: Scientist
+  icon: {fileID: -1610692034492231397, guid: 7c0c8f54853e6414ebbe1b846b0ad861, type: 3}
   category: 0
   isUnique: 0
-  isAnalysis: 0
-  pairedRole: {fileID: 0}
-  icon: {fileID: -1610692034492231397, guid: 7c0c8f54853e6414ebbe1b846b0ad861, type: 3}
+  pairedRole: 0
+  pairedWith: {fileID: 0}
+  dayAbility: 0
+  duskAbility1: 5
+  duskAbility2: 0
+  nightAbility: 6
+  dayAbilityUsageLimit1: 0
+  duskAbilityUsageLimit1: 99
+  duskAbilityUsageLimit2: 0
+  nightAbilityUsageLimit1: 99

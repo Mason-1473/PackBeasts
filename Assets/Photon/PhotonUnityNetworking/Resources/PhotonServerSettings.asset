@@ -47,6 +47,18 @@ MonoBehaviour:
   - SyncPhase
   - ExecuteAbility
   - SyncRoleAssignments
+  - RemoveKillAttempt
+  - SyncKillAttempt
+  - GameOver
+  - HideVotesAndDouble
+  - NotifyTargetOfArbiter
+  - NotifyTargetOfOracle
+  - PlayerWins
+  - RevealTraitors
+  - SyncArbiterBullets
+  - SyncDelayedResult
+  - SyncVigilanteBullets
+  - SyncVigilanteReloadFlag
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 0

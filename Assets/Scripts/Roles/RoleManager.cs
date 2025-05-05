@@ -11,34 +11,66 @@ public class RoleManager : MonoBehaviourPunCallbacks
     private List<RoleAsset> allRoles;
     private Dictionary<int, RoleAsset> playerRoleAssignments;
     private Dictionary<int, int> abilityUsageCounts;
-    private Dictionary<int, string> investigationResults; //detective
-    private Dictionary<int, string> visionResults; //sage
-    private Dictionary<int, int> synthesisProgress; //scientist
-    private Dictionary<int, int> killAttemptRecords; //sage
-    private Dictionary<int, string> cacheResults; //oracle
+    private Dictionary<int, string> visionResults; // Sage
+    private Dictionary<int, int> synthesisProgress; // Scientist
+    private Dictionary<int, int> killAttemptRecords; // Sage
+    private Dictionary<int, string> cacheResults; // Oracle
+    private Dictionary<int, string> emergencyCacheResults; // Arbiter
+    private Dictionary<int, int> lastResortBullets; // Arbiter
+    private Dictionary<int, bool> arbiterUsedReloadThisNight; // Arbiter
+    private Dictionary<int, bool> arbiterUsedEmergencyCache; // Arbiter
+    private Dictionary<int, int> arbiterEmergencyCacheDay; // Arbiter
+    private Dictionary<int, int> vigilanteBullets; // Vigilante 
+    private Dictionary<int, bool> vigilanteUsedReloadThisNight; // Vigilante
+    private Dictionary<int, int> oracleLastCacheDay; // Oracle
+    private Dictionary<int, bool> scientistSelfAdministered; // Scientist
+    private Dictionary<int, string> delayedVisionResults; // Sage
+    private Dictionary<int, string> delayedCacheResults; // Oracle
+    private Dictionary<int, string> delayedEmergencyCacheResults; // Arbiter
+    private Dictionary<int, string> delayedIlluminateResults; // Radiant
+    private Dictionary<int, int> shadeTargets; // Eclipse
+    private Dictionary<int, int> swiftFootTargets; // Escapist
+    private Dictionary<int, string> plotChoices; // Revenant
+    private Dictionary<int, int> plotProgress; // Revenant
+    private Dictionary<int, bool> isMarked; // Revenant
+    private Dictionary<int, int> vindicatorMissions; // Vindicator
+    private Dictionary<int, int> traitorAttackCounts; // Traitor
+    private Dictionary<int, int> firebirdCurrentLine; // Firebird
+    private Dictionary<int, List<int>> firebirdDousedTargets; // Firebird
 
-    //roles completed: Detective, Sage, Oracle
-    //roles worked on: Vigilante, Scientist, Eclipse
-    //roles to be started: Arbiter, Revenant, Radiant, Fallicil, Traitor
     void Awake()
     {
         allRoles = Resources.LoadAll<RoleAsset>("Roles").ToList();
         Debug.Log($"Loaded {allRoles.Count} roles from Resources/Roles");
 
-        if (allRoles.Count < 20)
-        {
-            Debug.LogError($"Not enough roles! Loaded {allRoles.Count}, need 20.");
-            return;
-        }
-
-        Debug.Log($"RoleCategory enum check: {RoleCategory.Dominion}");
-        Debug.Log($"AbilityType enum check: {AbilityType.Intrude}");
-
+        playerRoleAssignments = new Dictionary<int, RoleAsset>();
         abilityUsageCounts = new Dictionary<int, int>();
-        investigationResults = new Dictionary<int, string>();
         visionResults = new Dictionary<int, string>();
         synthesisProgress = new Dictionary<int, int>();
         killAttemptRecords = new Dictionary<int, int>();
+        cacheResults = new Dictionary<int, string>();
+        emergencyCacheResults = new Dictionary<int, string>();
+        lastResortBullets = new Dictionary<int, int>();
+        arbiterUsedReloadThisNight = new Dictionary<int, bool>();
+        arbiterUsedEmergencyCache = new Dictionary<int, bool>();
+        arbiterEmergencyCacheDay = new Dictionary<int, int>();
+        vigilanteBullets = new Dictionary<int, int>();
+        vigilanteUsedReloadThisNight = new Dictionary<int, bool>();
+        oracleLastCacheDay = new Dictionary<int, int>();
+        scientistSelfAdministered = new Dictionary<int, bool>();
+        delayedVisionResults = new Dictionary<int, string>();
+        delayedCacheResults = new Dictionary<int, string>();
+        delayedEmergencyCacheResults = new Dictionary<int, string>();
+        delayedIlluminateResults = new Dictionary<int, string>();
+        shadeTargets = new Dictionary<int, int>();
+        swiftFootTargets = new Dictionary<int, int>();
+        plotChoices = new Dictionary<int, string>();
+        plotProgress = new Dictionary<int, int>();
+        isMarked = new Dictionary<int, bool>();
+        vindicatorMissions = new Dictionary<int, int>();
+        traitorAttackCounts = new Dictionary<int, int>();
+        firebirdCurrentLine = new Dictionary<int, int>();
+        firebirdDousedTargets = new Dictionary<int, List<int>>();
     }
 
     public void AssignRolesToPlayers()
@@ -51,155 +83,133 @@ public class RoleManager : MonoBehaviourPunCallbacks
 
         playerRoleAssignments = new Dictionary<int, RoleAsset>();
         var availableRoles = new List<RoleAsset>(allRoles);
+        int playerCount = PhotonNetwork.CurrentRoom.PlayerCount;
+        Debug.Log($"Assigning roles for {playerCount} players");
 
-        // Determine faction numbers with weighted randomization
-        int packCount = WeightedRandomPackCount();
-        packCount = Mathf.Max(1, packCount);
+        int packCount = 5;
+        int dominionCount = 11;
+        int neutralKillerCount = playerCount - packCount - dominionCount;
+        int outsiderCount = 0;
 
-        int maxDominion = 20 - packCount;
-        int dominionCount = WeightedRandomDominionCount(maxDominion);
-        dominionCount = Mathf.Clamp(dominionCount, 0, maxDominion);
-
-        int remainingPlayers = 20 - (dominionCount + packCount);
-        int maxNeutralKillers = remainingPlayers;
-        int neutralKillerCount = WeightedRandomNeutralKillerCount(maxNeutralKillers);
-
-        if (packCount < 5)
+        if (Random.value > 0.5f)
         {
-            int extra = (5 - packCount) * 2;
-            neutralKillerCount = Mathf.Min(maxNeutralKillers, neutralKillerCount + Random.Range(0, extra + 1));
-        }
-
-        int outsiderCount = remainingPlayers - neutralKillerCount;
-
-        if (outsiderCount > 0)
-        {
-            int factionCount = 0;
-            if (dominionCount > 0) factionCount++;
-            if (packCount > 0) factionCount++;
-            if (neutralKillerCount > 0) factionCount++;
-            if (factionCount < 2)
-            {
-                outsiderCount = 0;
-                neutralKillerCount = remainingPlayers;
-            }
+            packCount--;
+            neutralKillerCount++;
         }
 
         Debug.Log($"Faction Distribution: Dominion={dominionCount}, Pack={packCount}, NeutralKillers={neutralKillerCount}, Outsiders={outsiderCount}");
 
         List<RoleAsset> selectedRoles = new List<RoleAsset>();
-
         var dominionRoles = availableRoles.Where(r => r.category == RoleCategory.Dominion).ToList();
+        var packRoles = availableRoles.Where(r => r.category == RoleCategory.Pack).ToList();
+        var neutralKillerRoles = availableRoles.Where(r => r.category == RoleCategory.NeutralKiller).ToList();
+
+        // Ensure unique roles (Eclipse, Escapist, Revenant)
+        var uniqueRoles = new List<string> { "Eclipse", "Escapist", "Revenant" };
+        foreach (var roleName in uniqueRoles)
+        {
+            var role = availableRoles.FirstOrDefault(r => r.roleName == roleName && r.isUnique);
+            if (role != null && Random.value > 0.5f)
+            {
+                selectedRoles.Add(role);
+                availableRoles.Remove(role); // Remove unique roles
+                if (role.category == RoleCategory.Pack)
+                    packCount--;
+                else if (role.category == RoleCategory.NeutralKiller)
+                    neutralKillerCount--;
+                Debug.Log($"Assigned unique role: {role.roleName}");
+            }
+            else
+            {
+                Debug.LogWarning($"Unique role {roleName} not included (not found or random skip).");
+            }
+        }
+
+        // Assign Dominion roles
         for (int i = 0; i < dominionCount && dominionRoles.Count > 0; i++)
         {
             int idx = Random.Range(0, dominionRoles.Count);
-            selectedRoles.Add(dominionRoles[idx]);
-            availableRoles.Remove(dominionRoles[idx]);
-            dominionRoles.RemoveAt(idx);
+            var role = dominionRoles[idx];
+            selectedRoles.Add(role);
+            if (role.isUnique)
+            {
+                availableRoles.Remove(role);
+                dominionRoles.RemoveAt(idx);
+            }
+            Debug.Log($"Assigned Dominion role: {role.roleName} (Unique: {role.isUnique})");
         }
 
-        var packRoles = availableRoles.Where(r => r.category == RoleCategory.Pack).ToList();
+        // Assign Pack roles
         for (int i = 0; i < packCount && packRoles.Count > 0; i++)
         {
             int idx = Random.Range(0, packRoles.Count);
-            selectedRoles.Add(packRoles[idx]);
-            availableRoles.Remove(packRoles[idx]);
-            packRoles.RemoveAt(idx);
+            var role = packRoles[idx];
+            selectedRoles.Add(role);
+            if (role.isUnique)
+            {
+                availableRoles.Remove(role);
+                packRoles.RemoveAt(idx);
+            }
+            Debug.Log($"Assigned Pack role: {role.roleName} (Unique: {role.isUnique})");
         }
 
-        var neutralKillerRoles = availableRoles.Where(r => r.category == RoleCategory.NeutralKiller).ToList();
+        // Assign NeutralKiller roles
         for (int i = 0; i < neutralKillerCount && neutralKillerRoles.Count > 0; i++)
         {
             int idx = Random.Range(0, neutralKillerRoles.Count);
-            selectedRoles.Add(neutralKillerRoles[idx]);
-            availableRoles.Remove(neutralKillerRoles[idx]);
-            neutralKillerRoles.RemoveAt(idx);
+            var role = neutralKillerRoles[idx];
+            selectedRoles.Add(role);
+            if (role.isUnique)
+            {
+                availableRoles.Remove(role);
+                neutralKillerRoles.RemoveAt(idx);
+            }
+            Debug.Log($"Assigned NeutralKiller role: {role.roleName} (Unique: {role.isUnique})");
         }
 
-        var outsiderRoles = availableRoles.Where(r => r.category == RoleCategory.Outsider).ToList();
-        for (int i = 0; i < outsiderCount && outsiderRoles.Count > 0; i++)
+        // Fill remaining slots with non-unique roles
+        while (selectedRoles.Count < playerCount && availableRoles.Count > 0)
         {
-            int idx = Random.Range(0, outsiderRoles.Count);
-            selectedRoles.Add(outsiderRoles[idx]);
-            availableRoles.Remove(outsiderRoles[idx]);
-            outsiderRoles.RemoveAt(idx);
+            var nonUniqueRoles = availableRoles.Where(r => !r.isUnique).ToList();
+            if (nonUniqueRoles.Count == 0)
+            {
+                Debug.LogError("No non-unique roles available to fill remaining slots.");
+                break;
+            }
+            int idx = Random.Range(0, nonUniqueRoles.Count);
+            var role = nonUniqueRoles[idx];
+            selectedRoles.Add(role);
+            Debug.Log($"Assigned additional non-unique role: {role.roleName}");
         }
 
-        while (selectedRoles.Count < 20 && availableRoles.Count > 0)
+        if (selectedRoles.Count < playerCount)
         {
-            int idx = Random.Range(0, availableRoles.Count);
-            selectedRoles.Add(availableRoles[idx]);
-            availableRoles.RemoveAt(idx);
-        }
-
-        if (selectedRoles.Count != 20)
-        {
-            Debug.LogError($"Failed to select 20 roles! Selected {selectedRoles.Count} roles.");
+            Debug.LogError($"Failed to select {playerCount} roles! Selected {selectedRoles.Count}");
             return;
         }
 
+        // Assign roles to players
         var players = PhotonNetwork.PlayerList;
         for (int i = 0; i < players.Length; i++)
         {
             int roleIdx = Random.Range(0, selectedRoles.Count);
             playerRoleAssignments[players[i].ActorNumber] = selectedRoles[roleIdx];
+            if (selectedRoles[roleIdx].roleName == "Vindicator")
+            {
+                var dominionPlayers = playerRoleAssignments
+                    .Where(kv => kv.Value.category == RoleCategory.Dominion && kv.Value.roleName != "Captor")
+                    .Select(kv => kv.Key)
+                    .ToList();
+                if (dominionPlayers.Count > 0)
+                {
+                    vindicatorMissions[players[i].ActorNumber] = dominionPlayers[Random.Range(0, dominionPlayers.Count)];
+                }
+            }
             selectedRoles.RemoveAt(roleIdx);
             Debug.Log($"Assigned role {playerRoleAssignments[players[i].ActorNumber].roleName} to player {players[i].ActorNumber}");
         }
 
         photonView.RPC("SyncRoleAssignments", RpcTarget.AllBuffered, playerRoleAssignments.Keys.ToArray(), playerRoleAssignments.Values.Select(r => r.roleName).ToArray());
-    }
-
-    private int WeightedRandomPackCount()
-    {
-        float rand = Random.value;
-        if (rand < 0.70f) return 5; // 70%
-        if (rand < 0.85f) return 4; // 15%
-        if (rand < 0.95f) return 3; // 10%
-        if (rand < 0.98f) return 2; // 3%
-        return 1; // 2%
-    }
-
-    private int WeightedRandomDominionCount(int maxDominion)
-    {
-        float a = 0;
-        float b = maxDominion;
-        float c = 11;
-        float u = Random.value;
-        float result;
-
-        if (u < (c - a) / (b - a))
-        {
-            result = a + Mathf.Sqrt(u * (b - a) * (c - a));
-        }
-        else
-        {
-            result = b - Mathf.Sqrt((1 - u) * (b - a) * (b - c));
-        }
-
-        return Mathf.RoundToInt(result);
-    }
-
-    private int WeightedRandomNeutralKillerCount(int maxNeutralKillers)
-    {
-        if (maxNeutralKillers <= 0) return 0;
-
-        float a = 0;
-        float b = maxNeutralKillers;
-        float c = maxNeutralKillers / 2f;
-        float u = Random.value;
-        float result;
-
-        if (u < (c - a) / (b - a))
-        {
-            result = a + Mathf.Sqrt(u * (b - a) * (c - a));
-        }
-        else
-        {
-            result = b - Mathf.Sqrt((1 - u) * (b - a) * (b - c));
-        }
-
-        return Mathf.RoundToInt(result);
     }
 
     [PunRPC]
@@ -215,22 +225,23 @@ public class RoleManager : MonoBehaviourPunCallbacks
             }
         }
         Debug.Log($"Synced roles: {string.Join(", ", playerRoleAssignments.Select(kv => $"Player {kv.Key}: {kv.Value.roleName}"))}");
-
         DisplayLocalPlayerRole();
     }
 
     void DisplayLocalPlayerRole()
     {
+        Debug.Log($"Displaying role for {PhotonNetwork.LocalPlayer.NickName}, ActorNumber: {PhotonNetwork.LocalPlayer.ActorNumber}");
         if (roleUIPrefab == null)
         {
-            Debug.LogError("roleUIPrefab is null!");
-            return;
+            roleUIPrefab = Resources.Load<GameObject>("RoleUIPrefab");
+            if (roleUIPrefab == null) Debug.LogError("Could not load RoleUIPrefab from Resources!");
         }
         if (uiParent == null)
         {
-            Debug.LogError("uiParent is null!");
-            return;
+            uiParent = GameObject.Find("Canvas")?.transform;
+            if (uiParent == null) Debug.LogError("Canvas not found for uiParent!");
         }
+        if (roleUIPrefab == null || uiParent == null) return;
 
         int localActorNumber = PhotonNetwork.LocalPlayer.ActorNumber;
         if (!playerRoleAssignments.TryGetValue(localActorNumber, out RoleAsset localRole))
@@ -239,6 +250,7 @@ public class RoleManager : MonoBehaviourPunCallbacks
             return;
         }
 
+        Debug.Log($"Instantiating role UI for role: {localRole.roleName}");
         GameObject roleUIObj = Instantiate(roleUIPrefab, uiParent);
         RoleUI roleUI = roleUIObj.GetComponent<RoleUI>();
         if (roleUI == null)
@@ -250,24 +262,300 @@ public class RoleManager : MonoBehaviourPunCallbacks
         roleUI.SetRole(localRole);
         RectTransform rect = roleUIObj.GetComponent<RectTransform>();
         rect.anchoredPosition = Vector2.zero;
+        rect.localScale = Vector3.one;
+        Debug.Log("Role UI instantiated and positioned");
     }
 
-    public void UseAbility(AbilityType abilityType)
+    public void UseAbility(AbilityType abilityType, int targetActorNumber = -1, bool isComplexSerum = false, string plotChoice = "")
     {
         int localActorNumber = PhotonNetwork.LocalPlayer.ActorNumber;
-        if (playerRoleAssignments == null || !playerRoleAssignments.TryGetValue(localActorNumber, out RoleAsset localRole))
+        if (!playerRoleAssignments.TryGetValue(localActorNumber, out RoleAsset localRole))
         {
             Debug.LogWarning("Cannot use ability: No role assigned to local player.");
             return;
         }
 
+        if (GameManager.Instance.PlayerInfos.TryGetValue(localActorNumber, out PlayerInfo playerInfo) && playerInfo.hasWon)
+        {
+            Debug.LogWarning($"Player {localActorNumber} has already won and cannot use abilities.");
+            return;
+        }
+
+        bool requiresTarget = abilityType == AbilityType.Vision || abilityType == AbilityType.Cache || 
+                             abilityType == AbilityType.Administer || abilityType == AbilityType.Shoot || 
+                             abilityType == AbilityType.EmergencyCache || abilityType == AbilityType.ArbiterShoot ||
+                             abilityType == AbilityType.Shade || abilityType == AbilityType.SwiftFoot ||
+                             abilityType == AbilityType.Illuminate || abilityType == AbilityType.Bloodthirst ||
+                             abilityType == AbilityType.Douse;
+        if (requiresTarget && targetActorNumber == -1)
+        {
+            Debug.LogWarning($"Ability {abilityType} requires a valid target.");
+            return;
+        }
+
+        if (localRole.roleName == "Vigilante")
+        {
+            if (abilityType == AbilityType.Reload)
+            {
+                if (GameManager.Instance.dayCount == 1 && GameManager.Instance.currentPhase == GamePhase.Dusk)
+                {
+                    Debug.LogWarning("Cannot use Reload on first Dusk!");
+                    return;
+                }
+                if (GameManager.Instance.currentPhase != GamePhase.Dusk)
+                {
+                    Debug.LogWarning($"Reload can only be used during Dusk phase, not {GameManager.Instance.currentPhase}");
+                    return;
+                }
+                if (vigilanteBullets.GetValueOrDefault(localActorNumber, 0) >= 2)
+                {
+                    Debug.LogWarning("Vigilante already has 2 bullets!");
+                    return;
+                }
+                vigilanteUsedReloadThisNight[localActorNumber] = true;
+            }
+            else if (abilityType == AbilityType.Shoot)
+            {
+                if (vigilanteBullets.GetValueOrDefault(localActorNumber, 0) <= 0)
+                {
+                    Debug.LogWarning("No bullets available to Shoot!");
+                    return;
+                }
+            }
+            if (vigilanteUsedReloadThisNight.GetValueOrDefault(localActorNumber, false) && abilityType != AbilityType.Reload)
+            {
+                Debug.LogWarning("Cannot use other abilities on the same night as Reload!");
+                return;
+            }
+        }
+        if (localRole.roleName == "Arbiter")
+        {
+            if (abilityType == AbilityType.EmergencyCache)
+            {
+                if (GameManager.Instance.dayCount == 1 && GameManager.Instance.currentPhase == GamePhase.Dusk)
+                {
+                    Debug.LogWarning("Cannot use Emergency Cache on first Dusk!");
+                    return;
+                }
+                if (GameManager.Instance.currentPhase != GamePhase.Dusk)
+                {
+                    Debug.LogWarning($"Emergency Cache can only be used during Dusk phase, not {GameManager.Instance.currentPhase}");
+                    return;
+                }
+                if (arbiterUsedEmergencyCache.GetValueOrDefault(localActorNumber, false))
+                {
+                    Debug.LogWarning("Emergency Cache can only be used once per game!");
+                    return;
+                }
+            }
+            else if (abilityType == AbilityType.LastResort)
+            {
+                if (!arbiterUsedEmergencyCache.GetValueOrDefault(localActorNumber, false))
+                {
+                    Debug.LogWarning("Cannot use Last Resort before using Emergency Cache!");
+                    return;
+                }
+                if (GameManager.Instance.dayCount == 1 && GameManager.Instance.currentPhase == GamePhase.Dusk)
+                {
+                    Debug.LogWarning("Cannot use Last Resort on first Dusk!");
+                    return;
+                }
+                if (GameManager.Instance.currentPhase != GamePhase.Dusk)
+                {
+                    Debug.LogWarning($"Last Resort can only be used during Dusk phase, not {GameManager.Instance.currentPhase}");
+                    return;
+                }
+                if (arbiterEmergencyCacheDay.ContainsKey(localActorNumber) && GameManager.Instance.dayCount == arbiterEmergencyCacheDay[localActorNumber] + 1)
+                {
+                    Debug.LogWarning("Cannot use Last Resort the Dusk after Emergency Cache!");
+                    return;
+                }
+                if (lastResortBullets.GetValueOrDefault(localActorNumber, 0) >= 1)
+                {
+                    Debug.LogWarning("Arbiter already has 1 bullet!");
+                    return;
+                }
+                arbiterUsedReloadThisNight[localActorNumber] = true;
+            }
+            else if (abilityType == AbilityType.ArbiterShoot)
+            {
+                if (lastResortBullets.GetValueOrDefault(localActorNumber, 0) <= 0)
+                {
+                    Debug.LogWarning("No bullets available to Shoot!");
+                    return;
+                }
+            }
+            if (arbiterUsedReloadThisNight.GetValueOrDefault(localActorNumber, false) && abilityType != AbilityType.LastResort)
+            {
+                Debug.LogWarning("Cannot use other abilities on the same night as Reload!");
+                return;
+            }
+        }
+        if (localRole.roleName == "Oracle" && abilityType == AbilityType.Cache)
+        {
+            if (GameManager.Instance.dayCount == 1 && GameManager.Instance.currentPhase == GamePhase.Dusk)
+            {
+                Debug.LogWarning("Cannot use Cache on first Dusk!");
+                return;
+            }
+            if (GameManager.Instance.currentPhase != GamePhase.Dusk)
+            {
+                Debug.LogWarning($"Cache can only be used during Dusk phase, not {GameManager.Instance.currentPhase}");
+                return;
+            }
+            if (oracleLastCacheDay.ContainsKey(localActorNumber) && GameManager.Instance.dayCount == oracleLastCacheDay[localActorNumber] + 1)
+            {
+                Debug.LogWarning("Cannot use Cache on consecutive Dusks!");
+                return;
+            }
+        }
+        if (localRole.roleName == "Scientist")
+        {
+            if (abilityType == AbilityType.Synthesis)
+            {
+                if (GameManager.Instance.currentPhase != GamePhase.Dusk)
+                {
+                    Debug.LogWarning($"Synthesis can only be used during Dusk phase, not {GameManager.Instance.currentPhase}");
+                    return;
+                }
+                if (synthesisProgress.ContainsKey(localActorNumber))
+                {
+                    Debug.LogWarning("Already synthesizing a Serum!");
+                    return;
+                }
+            }
+            else if (abilityType == AbilityType.Administer)
+            {
+                if (GameManager.Instance.currentPhase != GamePhase.Night)
+                {
+                    Debug.LogWarning($"Administer can only be used during Night phase, not {GameManager.Instance.currentPhase}");
+                    return;
+                }
+                if (!synthesisProgress.ContainsKey(localActorNumber) || synthesisProgress[localActorNumber] < 1)
+                {
+                    Debug.LogWarning("No Serum available to administer!");
+                    return;
+                }
+                if (targetActorNumber == localActorNumber)
+                {
+                    if (synthesisProgress[localActorNumber] >= 2)
+                    {
+                        Debug.LogWarning("Cannot administer Complex Serum to self!");
+                        return;
+                    }
+                    if (scientistSelfAdministered.GetValueOrDefault(localActorNumber, false))
+                    {
+                        Debug.LogWarning("Can only administer Simple Serum to self once per game!");
+                        return;
+                    }
+                }
+            }
+        }
+        if (localRole.roleName == "Eclipse" && abilityType == AbilityType.Shade)
+        {
+            if (GameManager.Instance.currentPhase != GamePhase.Dusk)
+            {
+                Debug.LogWarning($"Shade can only be used during Dusk phase, not {GameManager.Instance.currentPhase}");
+                return;
+            }
+            if (!playerRoleAssignments.TryGetValue(targetActorNumber, out RoleAsset targetRole) || targetRole.category != RoleCategory.Pack)
+            {
+                Debug.LogWarning("Shade can only target Pack members!");
+                return;
+            }
+        }
+        if (localRole.roleName == "Escapist" && abilityType == AbilityType.SwiftFoot)
+        {
+            if (GameManager.Instance.currentPhase != GamePhase.Dusk)
+            {
+                Debug.LogWarning($"Swift Foot can only be used during Dusk phase, not {GameManager.Instance.currentPhase}");
+                return;
+            }
+            if (!playerRoleAssignments.TryGetValue(targetActorNumber, out RoleAsset targetRole) || targetRole.category != RoleCategory.Pack)
+            {
+                Debug.LogWarning("Swift Foot can only target Pack members!");
+                return;
+            }
+        }
+        if (localRole.roleName == "Revenant" && abilityType == AbilityType.Plot)
+        {
+            if (GameManager.Instance.currentPhase != GamePhase.Dusk)
+            {
+                Debug.LogWarning($"Plot can only be used during Dusk phase, not {GameManager.Instance.currentPhase}");
+                return;
+            }
+            if (string.IsNullOrEmpty(plotChoice) || (plotChoice != "Rampage" && plotChoice != "Dominant"))
+            {
+                Debug.LogWarning("Plot requires a valid choice: Rampage or Dominant!");
+                return;
+            }
+            if (plotProgress.GetValueOrDefault(localActorNumber, 0) > 0)
+            {
+                Debug.LogWarning("Already plotting!");
+                return;
+            }
+        }
+        if (localRole.roleName == "Revenant" && abilityType == AbilityType.Enact)
+        {
+            if (GameManager.Instance.currentPhase != GamePhase.Night)
+            {
+                Debug.LogWarning($"Enact can only be used during Night phase, not {GameManager.Instance.currentPhase}");
+                return;
+            }
+            if (!isMarked.GetValueOrDefault(localActorNumber, false))
+            {
+                Debug.LogWarning("Cannot Enact: Player is not Marked!");
+                return;
+            }
+            if (plotProgress.GetValueOrDefault(localActorNumber, 0) < 2)
+            {
+                Debug.LogWarning("Cannot Enact: Plot not ready!");
+                return;
+            }
+        }
+        if (localRole.roleName == "Radiant" && abilityType == AbilityType.Illuminate)
+        {
+            if (GameManager.Instance.currentPhase != GamePhase.Dusk)
+            {
+                Debug.LogWarning($"Illuminate can only be used during Dusk phase, not {GameManager.Instance.currentPhase}");
+                return;
+            }
+        }
+        if (localRole.roleName == "Firebird" && abilityType == AbilityType.Swap)
+        {
+            if (GameManager.Instance.currentPhase != GamePhase.Dusk)
+            {
+                Debug.LogWarning($"Swap can only be used during Dusk phase, not {GameManager.Instance.currentPhase}");
+                return;
+            }
+        }
+        if (localRole.roleName == "Firebird" && (abilityType == AbilityType.Douse || abilityType == AbilityType.Ignite))
+        {
+            if (GameManager.Instance.currentPhase != GamePhase.Night)
+            {
+                Debug.LogWarning($"{abilityType} can only be used during Night phase, not {GameManager.Instance.currentPhase}");
+                return;
+            }
+        }
+
         bool canUse = false;
+        int usageLimit = 0;
+
         if (GameManager.Instance.currentPhase == GamePhase.Day && abilityType == localRole.dayAbility)
+        {
             canUse = true;
-        else if (GameManager.Instance.currentPhase == GamePhase.Dusk && abilityType == localRole.duskAbility)
+            usageLimit = localRole.dayAbilityUsageLimit1;
+        }
+        else if (GameManager.Instance.currentPhase == GamePhase.Dusk && (abilityType == localRole.duskAbility1 || abilityType == localRole.duskAbility2))
+        {
             canUse = true;
+            usageLimit = (abilityType == localRole.duskAbility1) ? localRole.duskAbilityUsageLimit1 : localRole.duskAbilityUsageLimit2;
+        }
         else if (GameManager.Instance.currentPhase == GamePhase.Night && abilityType == localRole.nightAbility)
+        {
             canUse = true;
+            usageLimit = localRole.nightAbilityUsageLimit1;
+        }
 
         if (!canUse)
         {
@@ -277,15 +565,25 @@ public class RoleManager : MonoBehaviourPunCallbacks
 
         int usageKey = localActorNumber * 1000 + (int)abilityType;
         if (!abilityUsageCounts.ContainsKey(usageKey)) abilityUsageCounts[usageKey] = 0;
-        if (localRole.abilityUsageLimit > 0 && abilityUsageCounts[usageKey] >= localRole.abilityUsageLimit)
+
+        if (localRole.roleName == "Oracle" && abilityType == AbilityType.Cache)
         {
-            Debug.LogWarning($"Ability {abilityType} has reached its usage limit ({localRole.abilityUsageLimit}).");
+            if (abilityUsageCounts.GetValueOrDefault(usageKey, 0) >= 2)
+            {
+                Debug.LogWarning("Cache can only be used twice per game!");
+                return;
+            }
+        }
+
+        if (usageLimit > 0 && abilityUsageCounts[usageKey] >= usageLimit)
+        {
+            Debug.LogWarning($"Ability {abilityType} has reached its usage limit ({usageLimit}).");
             return;
         }
 
         abilityUsageCounts[usageKey]++;
         Debug.Log($"Player {localActorNumber} using ability: {abilityType} for role {localRole.roleName}");
-        photonView.RPC("ExecuteAbility", RpcTarget.All, localActorNumber, (int)abilityType);
+        photonView.RPC("ExecuteAbility", RpcTarget.All, localActorNumber, (int)abilityType, targetActorNumber, isComplexSerum, plotChoice);
     }
 
     private void RecordKillAttempt(int actorNumber, int currentDay)
@@ -334,7 +632,7 @@ public class RoleManager : MonoBehaviourPunCallbacks
     }
 
     [PunRPC]
-    void ExecuteAbility(int actorNumber, int abilityTypeInt)
+    void ExecuteAbility(int actorNumber, int abilityTypeInt, int targetActorNumber, bool isComplexSerum, string plotChoice)
     {
         AbilityType abilityType = (AbilityType)abilityTypeInt;
         if (!playerRoleAssignments.TryGetValue(actorNumber, out RoleAsset role))
@@ -352,75 +650,376 @@ public class RoleManager : MonoBehaviourPunCallbacks
         }
 
         int currentDay = GameManager.Instance.dayCount;
-        var otherPlayers = PhotonNetwork.PlayerList.Where(p => p.ActorNumber != actorNumber).ToList();
 
         switch (abilityType)
         {
-            case AbilityType.Intrude:
-                if (otherPlayers.Count > 0)
+            case AbilityType.Reload:
+                if (role.roleName == "Vigilante" && PhotonNetwork.IsMasterClient)
                 {
-                    Player target = otherPlayers[Random.Range(0, otherPlayers.Count)];
-                    string result = GetIntrudeResult(target.ActorNumber);
-                    investigationResults[actorNumber] = $"Intrude result: {result}";
-                    Debug.Log($"Player {actorNumber} used Intrude on Player {target.ActorNumber}. Result: {result}");
+                    vigilanteBullets[actorNumber] = vigilanteBullets.GetValueOrDefault(actorNumber, 0) + 1;
+                    Debug.Log($"Player {actorNumber} reloaded. Bullets: {vigilanteBullets[actorNumber]}");
+                    photonView.RPC("SyncVigilanteBullets", RpcTarget.AllBuffered, actorNumber, vigilanteBullets[actorNumber]);
+                }
+                break;
+
+            case AbilityType.Shoot:
+                if (role.roleName == "Vigilante")
+                {
+                    if (vigilanteBullets.GetValueOrDefault(actorNumber, 0) <= 0)
+                    {
+                        Debug.LogWarning($"Player {actorNumber} has no bullets to Shoot!");
+                        return;
+                    }
+                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) && targetActorNumber != actorNumber)
+                    {
+                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
+                        int bulletNumber = vigilanteBullets[actorNumber];
+                        BaseAttackLevel attackLevel = bulletNumber == 2 ? BaseAttackLevel.Charged : BaseAttackLevel.Dominant;
+                        vigilanteBullets[actorNumber]--;
+                        photonView.RPC("SyncVigilanteBullets", RpcTarget.AllBuffered, actorNumber, vigilanteBullets[actorNumber]);
+                        RecordKillAttempt(actorNumber, currentDay);
+                        GameManager.Instance.ResolveAttack(actorNumber, targetActorNumber, new AttackInstance(attackLevel));
+
+                        if (bulletNumber == 2 && playerRoleAssignments.TryGetValue(target.ActorNumber, out RoleAsset targetRole) && targetRole.category == RoleCategory.Dominion)
+                        {
+                            vigilanteBullets[actorNumber] = 0;
+                            photonView.RPC("SyncVigilanteBullets", RpcTarget.AllBuffered, actorNumber, 0);
+                            Debug.Log($"Player {actorNumber} killed a Dominion member. Second bullet lost.");
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Invalid target {targetActorNumber} for Shoot.");
+                    }
+                }
+                break;
+
+            case AbilityType.EmergencyCache:
+                if (role.roleName == "Arbiter")
+                {
+                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) && targetActorNumber != actorNumber)
+                    {
+                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
+                        string result = GetEmergencyCacheResult(target.ActorNumber);
+                        delayedEmergencyCacheResults[actorNumber] = $"Emergency Cache result: {result}";
+                        arbiterUsedEmergencyCache[actorNumber] = true;
+                        arbiterEmergencyCacheDay[actorNumber] = currentDay;
+                        Debug.Log($"Player {actorNumber} used Emergency Cache on Player {target.ActorNumber}. Result pending.");
+                        if (PhotonNetwork.IsMasterClient && playerRoleAssignments.TryGetValue(target.ActorNumber, out RoleAsset targetRole) && targetRole.category != RoleCategory.Dominion)
+                        {
+                            photonView.RPC("NotifyTargetOfArbiter", RpcTarget.AllBuffered, targetActorNumber, actorNumber, role.roleName);
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Invalid target {targetActorNumber} for Emergency Cache.");
+                    }
+                }
+                break;
+
+            case AbilityType.LastResort:
+                if (role.roleName == "Arbiter" && PhotonNetwork.IsMasterClient)
+                {
+                    lastResortBullets[actorNumber] = 1;
+                    Debug.Log($"Player {actorNumber} reloaded. Bullets: {lastResortBullets[actorNumber]}");
+                    photonView.RPC("SyncArbiterBullets", RpcTarget.AllBuffered, actorNumber, lastResortBullets[actorNumber]);
+                }
+                break;
+
+            case AbilityType.ArbiterShoot:
+                if (role.roleName == "Arbiter")
+                {
+                    if (lastResortBullets.GetValueOrDefault(actorNumber, 0) <= 0)
+                    {
+                        Debug.LogWarning($"Player {actorNumber} has no bullets to Shoot!");
+                        return;
+                    }
+                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) && targetActorNumber != actorNumber)
+                    {
+                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
+                        lastResortBullets[actorNumber]--;
+                        photonView.RPC("SyncArbiterBullets", RpcTarget.AllBuffered, actorNumber, lastResortBullets[actorNumber]);
+                        RecordKillAttempt(actorNumber, currentDay);
+                        GameManager.Instance.ResolveAttack(actorNumber, targetActorNumber, new AttackInstance(BaseAttackLevel.Charged));
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Invalid target {targetActorNumber} for ArbiterShoot.");
+                    }
                 }
                 break;
 
             case AbilityType.Vision:
-                if (otherPlayers.Count > 0)
+                if (role.roleName == "Sage")
                 {
-                    Player target = otherPlayers[Random.Range(0, otherPlayers.Count)];
-                    string result = GetVisionResult(target.ActorNumber, currentDay);
-                    visionResults[actorNumber] = $"Vision result: {result}";
-                    Debug.Log($"Player {actorNumber} used Vision on Player {target.ActorNumber}. Result: {result}");
+                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) && targetActorNumber != actorNumber)
+                    {
+                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
+                        string result = GetVisionResult(target.ActorNumber, currentDay);
+                        delayedVisionResults[actorNumber] = $"Vision result: {result}";
+                        Debug.Log($"Player {actorNumber} used Vision on Player {target.ActorNumber}. Result pending.");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Invalid target {targetActorNumber} for Vision.");
+                    }
                 }
                 break;
 
             case AbilityType.Cache:
-                if (otherPlayers.Count > 0)
+                if (role.roleName == "Oracle")
                 {
-                    Player target = otherPlayers[Random.Range(0, otherPlayers.Count)];
-                    string result = GetCacheResult(target.ActorNumber);
-                    cacheResults[actorNumber] = $"Cache result: {result}";
-                    Debug.Log($"Player {actorNumber} used Cache on Player {target.ActorNumber}. Result: {result}");
+                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) && targetActorNumber != actorNumber)
+                    {
+                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
+                        string result = GetCacheResult(target.ActorNumber);
+                        delayedCacheResults[actorNumber] = $"Cache result: {result}";
+                        oracleLastCacheDay[actorNumber] = currentDay;
+                        Debug.Log($"Player {actorNumber} used Cache on Player {target.ActorNumber}. Result pending.");
+                        if (PhotonNetwork.IsMasterClient && playerRoleAssignments.TryGetValue(target.ActorNumber, out RoleAsset targetRole) && targetRole.category != RoleCategory.Dominion)
+                        {
+                            photonView.RPC("NotifyTargetOfOracle", RpcTarget.AllBuffered, targetActorNumber, actorNumber, role.roleName);
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Invalid target {targetActorNumber} for Cache.");
+                    }
                 }
                 break;
 
             case AbilityType.Synthesis:
-                synthesisProgress[actorNumber] = synthesisProgress.ContainsKey(actorNumber) ? synthesisProgress[actorNumber] + 1 : 1;
-                Debug.Log($"Player {actorNumber} started synthesizing a Serum. Progress: {synthesisProgress[actorNumber]}/2");
+                if (role.roleName == "Scientist")
+                {
+                    synthesisProgress[actorNumber] = isComplexSerum ? 1 : 2;
+                    Debug.Log($"Player {actorNumber} started synthesizing a {(isComplexSerum ? "Complex" : "Simple")} Serum. Progress: {synthesisProgress[actorNumber]}/{(isComplexSerum ? 2 : 1)}");
+                }
                 break;
 
             case AbilityType.Administer:
-                if (!synthesisProgress.ContainsKey(actorNumber) || synthesisProgress[actorNumber] < 1)
+                if (role.roleName == "Scientist")
                 {
-                    Debug.LogWarning($"Player {actorNumber} has no Serum to administer.");
-                    return;
-                }
-                bool isComplex = synthesisProgress[actorNumber] >= 2;
-                if (otherPlayers.Count > 0)
-                {
-                    Player target = otherPlayers[Random.Range(0, otherPlayers.Count)];
-                    string defenseLevel = isComplex ? "Fortified" : "Shielded";
-                    Debug.Log($"Player {actorNumber} administered a {defenseLevel} Serum to Player {target.ActorNumber}.");
-                }
-                synthesisProgress.Remove(actorNumber);
-                break;
-
-            case AbilityType.Shoot:
-                if (otherPlayers.Count > 0)
-                {
-                    Player target = otherPlayers[Random.Range(0, otherPlayers.Count)];
-                    int bulletNumber = abilityUsageCounts[actorNumber * 1000 + (int)abilityType];
-                    string attackLevel = bulletNumber == 1 ? "Charged" : "Dominant";
-                    Debug.Log($"Player {actorNumber} shot Player {target.ActorNumber} with a {attackLevel} Attack.");
-                    RecordKillAttempt(actorNumber, currentDay);
+                    if (!synthesisProgress.ContainsKey(actorNumber) || synthesisProgress[actorNumber] < 1)
+                    {
+                        Debug.LogWarning($"Player {actorNumber} has no Serum to administer.");
+                        return;
+                    }
+                    bool isComplex = synthesisProgress[actorNumber] >= 2;
+                    if ((targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber)) || targetActorNumber == actorNumber)
+                    {
+                        Player target = targetActorNumber == actorNumber ? PhotonNetwork.CurrentRoom.Players[actorNumber] : PhotonNetwork.CurrentRoom.Players[targetActorNumber];
+                        string defenseLevel = isComplex ? "Fortified" : "Shielded";
+                        GameManager.Instance.SetDefenseLevel(targetActorNumber, defenseLevel);
+                        Debug.Log($"Player {actorNumber} administered a {defenseLevel} Serum to Player {target.ActorNumber}.");
+                        if (targetActorNumber == actorNumber)
+                        {
+                            scientistSelfAdministered[actorNumber] = true;
+                        }
+                        synthesisProgress.Remove(actorNumber);
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Invalid target {targetActorNumber} for Administer.");
+                    }
                 }
                 break;
 
             case AbilityType.Brilliance:
-                Debug.Log($"Player {actorNumber} used Brilliance: Votes hidden, vote doubled.");
+                if (role.roleName == "Eclipse")
+                {
+                    photonView.RPC("HideVotesAndDouble", RpcTarget.All, actorNumber);
+                }
                 break;
+
+            case AbilityType.Shade:
+                if (role.roleName == "Eclipse")
+                {
+                    shadeTargets[actorNumber] = targetActorNumber;
+                    Debug.Log($"Player {actorNumber} used Shade on Player {targetActorNumber}.");
+                }
+                break;
+
+            case AbilityType.SwiftFoot:
+                if (role.roleName == "Escapist")
+                {
+                    swiftFootTargets[actorNumber] = targetActorNumber;
+                    Debug.Log($"Player {actorNumber} used Swift Foot on Player {targetActorNumber}.");
+                }
+                break;
+
+            case AbilityType.Plot:
+                if (role.roleName == "Revenant")
+                {
+                    plotChoices[actorNumber] = plotChoice;
+                    plotProgress[actorNumber] = 1;
+                    Debug.Log($"Player {actorNumber} started Plot: {plotChoice}. Progress: 1/2");
+                }
+                break;
+
+            case AbilityType.Enact:
+                if (role.roleName == "Revenant")
+                {
+                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) && targetActorNumber != actorNumber)
+                    {
+                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
+                        string choice = plotChoices.GetValueOrDefault(actorNumber, "Dominant");
+                        bool isRampage = choice == "Rampage";
+                        BaseAttackLevel attackLevel = isRampage ? BaseAttackLevel.Dominant : BaseAttackLevel.Dominant;
+                        GameManager.Instance.ResolveAttack(actorNumber, targetActorNumber, new AttackInstance(attackLevel, isRampage));
+                        plotChoices.Remove(actorNumber);
+                        plotProgress.Remove(actorNumber);
+                        RecordKillAttempt(actorNumber, currentDay);
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Invalid target {targetActorNumber} for Enact.");
+                    }
+                }
+                break;
+
+            case AbilityType.Illuminate:
+                if (role.roleName == "Radiant")
+                {
+                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) && targetActorNumber != actorNumber)
+                    {
+                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
+                        string result = GetIlluminateResult(target.ActorNumber);
+                        delayedIlluminateResults[actorNumber] = $"Illuminate result: {result}";
+                        Debug.Log($"Player {actorNumber} used Illuminate on Player {target.ActorNumber}. Result pending.");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Invalid target {targetActorNumber} for Illuminate.");
+                    }
+                }
+                break;
+
+            case AbilityType.Bloodthirst:
+                if (role.roleName == "Traitor")
+                {
+                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) && targetActorNumber != actorNumber)
+                    {
+                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
+                        if (playerRoleAssignments.TryGetValue(targetActorNumber, out RoleAsset targetRole) && targetRole.roleName == "Traitor")
+                        {
+                            photonView.RPC("RevealTraitors", RpcTarget.All, actorNumber, targetActorNumber);
+                        }
+                        else
+                        {
+                            int attackCount = traitorAttackCounts.GetValueOrDefault(actorNumber, 0) + 1;
+                            traitorAttackCounts[actorNumber] = attackCount;
+                            BaseAttackLevel attackLevel = attackCount >= 4 ? BaseAttackLevel.Inexorable : (attackCount >= 2 ? BaseAttackLevel.Dominant : BaseAttackLevel.Charged);
+                            GameManager.Instance.ResolveAttack(actorNumber, targetActorNumber, new AttackInstance(attackLevel));
+                            RecordKillAttempt(actorNumber, currentDay);
+                        }
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Invalid target {targetActorNumber} for Bloodthirst.");
+                    }
+                }
+                break;
+
+            case AbilityType.Swap:
+                if (role.roleName == "Firebird")
+                {
+                    int currentLine = firebirdCurrentLine.GetValueOrDefault(actorNumber, 1);
+                    currentLine = (currentLine % 3) + 1;
+                    firebirdCurrentLine[actorNumber] = currentLine;
+                    Debug.Log($"Player {actorNumber} swapped to Line {currentLine}.");
+                }
+                break;
+
+            case AbilityType.Douse:
+                if (role.roleName == "Firebird")
+                {
+                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber))
+                    {
+                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
+                        int currentLine = firebirdCurrentLine.GetValueOrDefault(actorNumber, 1);
+                        if (!firebirdDousedTargets.ContainsKey(currentLine))
+                        {
+                            firebirdDousedTargets[currentLine] = new List<int>();
+                        }
+                        firebirdDousedTargets[currentLine].Add(targetActorNumber);
+                        Debug.Log($"Player {actorNumber} doused Player {targetActorNumber} on Line {currentLine}.");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"Invalid target {targetActorNumber} for Douse.");
+                    }
+                }
+                break;
+
+            case AbilityType.Ignite:
+                if (role.roleName == "Firebird")
+                {
+                    foreach (var line in firebirdDousedTargets)
+                    {
+                        foreach (var target in line.Value)
+                        {
+                            if (PhotonNetwork.CurrentRoom.Players.ContainsKey(target))
+                            {
+                                GameManager.Instance.ResolveAttack(actorNumber, target, new AttackInstance(BaseAttackLevel.Inexorable, false, true));
+                            }
+                        }
+                    }
+                    firebirdDousedTargets.Clear();
+                    Debug.Log($"Player {actorNumber} ignited all doused targets.");
+                    RecordKillAttempt(actorNumber, currentDay);
+                }
+                break;
+        }
+    }
+
+    [PunRPC]
+    void SyncVigilanteBullets(int actorNumber, int bulletCount)
+    {
+        vigilanteBullets[actorNumber] = bulletCount;
+        Debug.Log($"Synced Vigilante bullets for Player {actorNumber}: {bulletCount}");
+    }
+
+    [PunRPC]
+    void SyncArbiterBullets(int actorNumber, int bulletCount)
+    {
+        lastResortBullets[actorNumber] = bulletCount;
+        Debug.Log($"Synced Arbiter bullets for Player {actorNumber}: {bulletCount}");
+    }
+
+    [PunRPC]
+    void NotifyTargetOfArbiter(int targetActorNumber, int arbiterActorNumber, string arbiterRoleName)
+    {
+        if (PhotonNetwork.LocalPlayer.ActorNumber == targetActorNumber)
+        {
+            Debug.Log($"Player {arbiterActorNumber} (Arbiter, {arbiterRoleName}) used Emergency Cache on you!");
+        }
+    }
+
+    [PunRPC]
+    void NotifyTargetOfOracle(int targetActorNumber, int oracleActorNumber, string oracleRoleName)
+    {
+        if (PhotonNetwork.LocalPlayer.ActorNumber == targetActorNumber)
+        {
+            Debug.Log($"Player {oracleActorNumber} (Oracle, {oracleRoleName}) used Cache on you!");
+        }
+    }
+
+    [PunRPC]
+    void HideVotesAndDouble(int actorNumber)
+    {
+        Debug.Log($"Player {actorNumber} used Brilliance: Votes hidden, vote doubled.");
+    }
+
+    [PunRPC]
+    void RevealTraitors(int actorNumber, int targetActorNumber)
+    {
+        if (PhotonNetwork.LocalPlayer.ActorNumber == actorNumber)
+        {
+            Debug.Log($"Player {targetActorNumber} is also a Traitor!");
+        }
+        if (PhotonNetwork.LocalPlayer.ActorNumber == targetActorNumber)
+        {
+            Debug.Log($"Player {actorNumber} is also a Traitor!");
         }
     }
 
@@ -428,57 +1027,122 @@ public class RoleManager : MonoBehaviourPunCallbacks
     {
         if (!playerRoleAssignments.TryGetValue(targetActorNumber, out RoleAsset targetRole))
             return "Target not found.";
-
         bool hasKilled = HasRecentKillAttempt(targetActorNumber, currentDay);
         return hasKilled
             ? "Your target has attempted to kill in the past 2 days."
             : "Your target has not attempted to kill in the past 2 days.";
-    } 
+    }
 
-    string GetCacheResult(int targetActorNumber) 
+    string GetCacheResult(int targetActorNumber)
     {
         if (!playerRoleAssignments.TryGetValue(targetActorNumber, out RoleAsset targetRole))
             return "Target not found.";
-
+        if (shadeTargets.ContainsValue(targetActorNumber))
+        {
+            return "Your target's role is a Dominion role.";
+        }
         return $"Your target's role is {targetRole.roleName}";
     }
 
-    string GetIntrudeResult(int targetActorNumber)
+    string GetEmergencyCacheResult(int targetActorNumber)
     {
         if (!playerRoleAssignments.TryGetValue(targetActorNumber, out RoleAsset targetRole))
             return "Target not found.";
+        return $"Your target's role is {targetRole.roleName}";
+    }
 
-        switch (targetRole.roleName)
+    string GetIlluminateResult(int targetActorNumber)
+    {
+        if (!playerRoleAssignments.TryGetValue(targetActorNumber, out RoleAsset targetRole))
+            return "Target not found.";
+        if (shadeTargets.ContainsValue(targetActorNumber))
         {
-            case "Vigilante":
-            case "Revenant":
-            case "Aggressor":
-            case "Traitor":
-                return "Your target seems to have weapons lying around.";
-            case "Captor":
-            case "Restraint":
-            case "Trapper":
-            case "Gazer":
-            case "Starchild":
-                return "Your target seems to store many tools.";
-            case "Scientist":
-            case "Eclipse":
-            case "Escapist":
-            case "Protector":
-                return "Your target seems to protect others.";
-            case "Sage":
-            case "Oracle":
-            case "Radiant":
-            case "Vindicator":
-                return "Your target seems to investigate others.";
-            case "Isolationist":
-            case "Obstinance":
-            case "Shifter":
-            case "Fallicil":
-            case "Arbiter":
-                return "You couldn’t get a good read on your target.";
-            default:
-                return "Unknown result.";
+            return "Your target's role is a Dominion role.";
+        }
+        return $"Your target's role is {targetRole.roleName}";
+    }
+
+    public bool IsVindicatorMissionComplete(int actorNumber)
+    {
+        if (vindicatorMissions.TryGetValue(actorNumber, out int targetActorNumber))
+        {
+            return !PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) || 
+                   (GameManager.Instance.PlayerInfos.TryGetValue(targetActorNumber, out PlayerInfo targetInfo) && targetInfo.hasWon);
+        }
+        return false;
+    }
+
+    public void ResetVigilanteReloadFlag()
+    {
+        if (PhotonNetwork.IsMasterClient)
+        {
+            vigilanteUsedReloadThisNight.Clear();
+            arbiterUsedReloadThisNight.Clear();
+            photonView.RPC("SyncVigilanteReloadFlag", RpcTarget.All);
+        }
+    }
+
+    [PunRPC]
+    void SyncVigilanteReloadFlag()
+    {
+        vigilanteUsedReloadThisNight.Clear();
+        arbiterUsedReloadThisNight.Clear();
+        Debug.Log("Reset Vigilante and Arbiter Reload flags");
+    }
+
+    public void DeliverDelayedResults()
+    {
+        if (PhotonNetwork.IsMasterClient)
+        {
+            foreach (var kvp in delayedVisionResults)
+            {
+                int actorNumber = kvp.Key;
+                string result = kvp.Value;
+                visionResults[actorNumber] = result;
+                photonView.RPC("SyncDelayedResult", RpcTarget.AllBuffered, actorNumber, "Vision", result);
+            }
+            foreach (var kvp in delayedCacheResults)
+            {
+                int actorNumber = kvp.Key;
+                string result = kvp.Value;
+                cacheResults[actorNumber] = result;
+                photonView.RPC("SyncDelayedResult", RpcTarget.AllBuffered, actorNumber, "Cache", result);
+            }
+            foreach (var kvp in delayedEmergencyCacheResults)
+            {
+                int actorNumber = kvp.Key;
+                string result = kvp.Value;
+                emergencyCacheResults[actorNumber] = result;
+                photonView.RPC("SyncDelayedResult", RpcTarget.AllBuffered, actorNumber, "EmergencyCache", result);
+            }
+            foreach (var kvp in delayedIlluminateResults)
+            {
+                int actorNumber = kvp.Key;
+                string result = kvp.Value;
+                delayedIlluminateResults[actorNumber] = result;
+                photonView.RPC("SyncDelayedResult", RpcTarget.AllBuffered, actorNumber, "Illuminate", result);
+            }
+            delayedVisionResults.Clear();
+            delayedCacheResults.Clear();
+            delayedEmergencyCacheResults.Clear();
+            delayedIlluminateResults.Clear();
+        }
+    }
+
+    [PunRPC]
+    void SyncDelayedResult(int actorNumber, string abilityType, string result)
+    {
+        if (abilityType == "Vision")
+            visionResults[actorNumber] = result;
+        else if (abilityType == "Cache")
+            cacheResults[actorNumber] = result;
+        else if (abilityType == "EmergencyCache")
+            emergencyCacheResults[actorNumber] = result;
+        else if (abilityType == "Illuminate")
+            delayedIlluminateResults[actorNumber] = result;
+        if (PhotonNetwork.LocalPlayer.ActorNumber == actorNumber)
+        {
+            Debug.Log($"Received {abilityType} result: {result}");
         }
     }
 }

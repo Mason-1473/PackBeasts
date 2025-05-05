@@ -4,14 +4,31 @@ using Photon.Realtime;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using System.Collections;
+using System.Collections.Generic;
 #if TMPRO
 using TMPro;
 #endif
 
 public class NetworkManager : MonoBehaviourPunCallbacks
 {
-
     public static NetworkManager Instance { get; private set; }
+
+    [SerializeField] private Button joinGameButton;
+    [SerializeField] private Button createGameButton;
+#if TMPRO
+    [SerializeField] private TMP_Text statusText;
+    [SerializeField] private TMP_Text countdownText;
+#else
+    [SerializeField] private Text statusText;
+    [SerializeField] private Text countdownText;
+#endif
+    [SerializeField] private GameObject playerPrefab; // Assign a prefab with PlayerInfo component
+
+    private const int MAX_PLAYERS = 20; // Updated to 20 for Pack Beasts
+    private const string GAME_SCENE = "GameScene";
+    private bool isJoining = false;
+    private int retryCount = 0;
+    private TypedLobby gameLobby = new TypedLobby("GameLobby", LobbyType.Default);
 
     private void Awake()
     {
@@ -24,41 +41,29 @@ public class NetworkManager : MonoBehaviourPunCallbacks
 
         Instance = this;
         DontDestroyOnLoad(gameObject); // Keep across scene loads
+    }
 
-    if (FindObjectsOfType<NetworkManager>().Length > 1)
+    void Start()
     {
-        Destroy(gameObject);
-        return;
-    }
-    DontDestroyOnLoad(gameObject);
-    }
+        if (joinGameButton != null)
+            joinGameButton.interactable = false;
+        else
+            Debug.LogWarning("joinGameButton is not assigned in NetworkManager.");
+        
+        if (createGameButton != null)
+            createGameButton.interactable = false;
+        else
+            Debug.LogWarning("createGameButton is not assigned in NetworkManager.");
 
-    [SerializeField] private Button joinGameButton;
-    [SerializeField] private Button createGameButton;
-#if TMPRO
-    [SerializeField] private TMP_Text statusText;
-    [SerializeField] private TMP_Text countdownText;
-#else
-    [SerializeField] private Text statusText;
-    [SerializeField] private Text countdownText;
-#endif
+        if (playerPrefab == null)
+            Debug.LogWarning("playerPrefab is not assigned in NetworkManager. Please assign a prefab with PlayerInfo component.");
 
-    private const int MAX_PLAYERS = 20;
-    private const string GAME_SCENE = "GameScene";
-    private bool isJoining = false;
-    private int retryCount = 0;
-    private TypedLobby gameLobby = new TypedLobby("GameLobby", LobbyType.Default);
-
-    void Start() {
-    if (joinGameButton != null) joinGameButton.interactable = false;
-    if (createGameButton != null) createGameButton.interactable = false;
-    PhotonNetwork.AutomaticallySyncScene = true;
-
-    PhotonNetwork.GameVersion = "1.0";
-    PhotonNetwork.ConnectUsingSettings();
-    UpdateStatus("Connecting to Photon...");
-       
-    Debug.Log($"PhotonView in Start: {photonView != null}");
+        PhotonNetwork.AutomaticallySyncScene = true;
+        PhotonNetwork.GameVersion = "1.0";
+        PhotonNetwork.ConnectUsingSettings();
+        UpdateStatus("Connecting to Photon...");
+        
+        Debug.Log($"PhotonView in Start: {photonView != null}");
     }
 
     public override void OnConnectedToMaster()
@@ -80,8 +85,8 @@ public class NetworkManager : MonoBehaviourPunCallbacks
 
         isJoining = true;
         retryCount = 0;
-        joinGameButton.interactable = false;
-        createGameButton.interactable = false;
+        if (joinGameButton != null) joinGameButton.interactable = false;
+        if (createGameButton != null) createGameButton.interactable = false;
         UpdateStatus("Preparing to join a game...");
         Invoke(nameof(TryJoinRandomRoom), 4f);
     }
@@ -91,8 +96,8 @@ public class NetworkManager : MonoBehaviourPunCallbacks
         if (isJoining || PhotonNetwork.NetworkClientState != ClientState.JoinedLobby) return;
 
         isJoining = true;
-        joinGameButton.interactable = false;
-        createGameButton.interactable = false;
+        if (joinGameButton != null) joinGameButton.interactable = false;
+        if (createGameButton != null) createGameButton.interactable = false;
         UpdateStatus("Creating a new game...");
 
         RoomOptions roomOptions = new RoomOptions
@@ -150,6 +155,25 @@ public class NetworkManager : MonoBehaviourPunCallbacks
         string roomName = PhotonNetwork.CurrentRoom.Name;
         UpdateStatus($"Joined room '{roomName}'! Players: {PhotonNetwork.CurrentRoom.PlayerCount}/{PhotonNetwork.CurrentRoom.MaxPlayers}");
 
+        // Spawn player prefab
+        if (playerPrefab != null)
+        {
+            GameObject playerObject = PhotonNetwork.Instantiate(playerPrefab.name, Vector3.zero, Quaternion.identity);
+            if (playerObject.GetComponent<PlayerInfo>() == null)
+            {
+                Debug.LogError("Player prefab must have a PlayerInfo component!");
+            }
+            else
+            {
+                GameManager.Instance.RegisterPlayer(PhotonNetwork.LocalPlayer, playerObject);
+                Debug.Log($"Registered player {PhotonNetwork.LocalPlayer.ActorNumber} with GameManager.");
+            }
+        }
+        else
+        {
+            Debug.LogError("playerPrefab is not assigned in NetworkManager. Cannot spawn player.");
+        }
+
         if (PhotonNetwork.IsMasterClient)
         {
             PhotonNetwork.LoadLevel("WaitingRoom");
@@ -167,22 +191,22 @@ public class NetworkManager : MonoBehaviourPunCallbacks
     }
 
     private void CheckPlayerCount()
-{
-    Debug.Log($"Current players: {PhotonNetwork.CurrentRoom.PlayerCount}/{PhotonNetwork.CurrentRoom.MaxPlayers}");
-    if (PhotonNetwork.CurrentRoom.PlayerCount >= MAX_PLAYERS)
     {
-        UpdateStatus("Room full! Starting game in 5 seconds...");
-        if (PhotonNetwork.IsMasterClient)
+        Debug.Log($"Current players: {PhotonNetwork.CurrentRoom.PlayerCount}/{PhotonNetwork.CurrentRoom.MaxPlayers}");
+        if (PhotonNetwork.CurrentRoom.PlayerCount >= MAX_PLAYERS)
         {
-            if (photonView == null)
+            UpdateStatus("Room full! Starting game in 5 seconds...");
+            if (PhotonNetwork.IsMasterClient)
             {
-                Debug.LogError("PhotonView is null on NetworkManager!");
-                return;
+                if (photonView == null)
+                {
+                    Debug.LogError("PhotonView is null on NetworkManager!");
+                    return;
+                }
+                photonView.RPC("StartCountdownRPC", RpcTarget.All);
             }
-            photonView.RPC("StartCountdownRPC", RpcTarget.All);
         }
     }
-}
 
     [PunRPC]
     private void StartCountdownRPC()
@@ -217,6 +241,11 @@ public class NetworkManager : MonoBehaviourPunCallbacks
 #else
             countdownText.text = msg;
 #endif
+            Debug.Log($"Countdown text updated: {msg}");
+        }
+        else
+        {
+            Debug.LogWarning("countdownText is not assigned in NetworkManager.");
         }
     }
 
@@ -236,24 +265,43 @@ public class NetworkManager : MonoBehaviourPunCallbacks
     {
         isJoining = false;
         UpdateStatus($"Failed to create room: {message}");
-        joinGameButton.interactable = true;
-        createGameButton.interactable = true;
+        if (joinGameButton != null) joinGameButton.interactable = true;
+        if (createGameButton != null) createGameButton.interactable = true;
     }
 
     public override void OnJoinRoomFailed(short returnCode, string message)
     {
         isJoining = false;
         UpdateStatus($"Failed to join room: {message}");
-        joinGameButton.interactable = true;
-        createGameButton.interactable = true;
+        if (joinGameButton != null) joinGameButton.interactable = true;
+        if (createGameButton != null) createGameButton.interactable = true;
     }
 
     public override void OnLeftLobby()
-{
-    UpdateStatus("Left lobby. Rejoining...");
-    CancelInvoke(nameof(TryJoinRandomRoom));
-    PhotonNetwork.JoinLobby(gameLobby);
-}
+    {
+        UpdateStatus("Left lobby. Rejoining...");
+        CancelInvoke(nameof(TryJoinRandomRoom));
+        PhotonNetwork.JoinLobby(gameLobby);
+    }
+
+    public override void OnRoomListUpdate(List<RoomInfo> roomList)
+    {
+        Debug.Log($"Room list updated. Available rooms: {roomList.Count}");
+    }
+
+    public override void OnPlayerLeftRoom(Player otherPlayer)
+    {
+        UpdateStatus($"Player left. Players: {PhotonNetwork.CurrentRoom.PlayerCount}/{PhotonNetwork.CurrentRoom.MaxPlayers}");
+    }
+
+    public override void OnMasterClientSwitched(Player newMasterClient)
+    {
+        Debug.Log($"Master client switched to player {newMasterClient.ActorNumber}");
+        if (PhotonNetwork.IsMasterClient)
+        {
+            CheckPlayerCount();
+        }
+    }
 
     private void UpdateStatus(string message)
     {
@@ -265,6 +313,27 @@ public class NetworkManager : MonoBehaviourPunCallbacks
 #else
             statusText.text = message;
 #endif
+        }
+        else
+        {
+            Debug.LogWarning("statusText is not assigned in NetworkManager.");
+        }
+    }
+
+    // Called when the GameScene is loaded
+    void OnLevelWasLoaded(int level)
+    {
+        if (SceneManager.GetActiveScene().name == GAME_SCENE && PhotonNetwork.IsMasterClient)
+        {
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.StartGame();
+                Debug.Log("Started game via GameManager.");
+            }
+            else
+            {
+                Debug.LogError("GameManager.Instance is null in GameScene. Ensure GameManager is present.");
+            }
         }
     }
 }

@@ -11,10 +11,10 @@ public class WaitingRoomManager : MonoBehaviourPunCallbacks
 {
     public Vector3 spawnCenter = Vector3.zero;
     public float spawnRadius = 5f;
-    public int maxPlayers = 20; //change this to 20 later
+    public int maxPlayers = 4; // change this to 20 after testing
 
     [SerializeField] private RoleManager roleManager;
-    [SerializeField] private GameManager gameManager; // Reference to GameManager
+    [SerializeField] private GameManager gameManager;
 
 #if TMPRO
     [SerializeField] private TMP_Text statusText;
@@ -22,7 +22,14 @@ public class WaitingRoomManager : MonoBehaviourPunCallbacks
     [SerializeField] private Text statusText;
 #endif
 
+    // Start can remain empty or handle non-network initialization
     void Start()
+    {
+        UpdateStatus("Connecting to room...");
+    }
+
+    // Called when the local player joins the room
+    public override void OnJoinedRoom()
     {
         if (!PhotonNetwork.InRoom)
         {
@@ -31,6 +38,7 @@ public class WaitingRoomManager : MonoBehaviourPunCallbacks
             return;
         }
 
+        // Spawn player at a random position
         Vector3 randomOffset = Random.insideUnitSphere;
         randomOffset.y = 0;
         randomOffset = randomOffset.normalized * Random.Range(0f, spawnRadius);
@@ -46,6 +54,7 @@ public class WaitingRoomManager : MonoBehaviourPunCallbacks
 
         UpdateStatus($"Waiting for players... {PhotonNetwork.CurrentRoom.PlayerCount}/{maxPlayers}");
 
+        // Master client checks start conditions
         if (PhotonNetwork.IsMasterClient)
         {
             CheckStartConditions();

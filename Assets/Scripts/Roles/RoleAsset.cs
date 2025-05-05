@@ -6,24 +6,24 @@ public enum AbilityType
 {
     None,
     //Analysis abilities - Detective, Sage, Oracle, Arbiter
-    Intrude, Vision, Cache, EmergencyCache,
+    Vision, Cache, EmergencyCache,
     //Redmedation abilities - Scientist, Scientist, Isolationist
-    Synthesis, Administer, Barricade,
-    //Excision abilities - Vigilante, Vigilante, Arbiter
-    Reload, Shoot, LastResort,
+    Synthesis, Administer,
+    //Excision abilities - Vigilante, Vigilante, Arbiter, Arbiter
+    Reload, Shoot, LastResort, ArbiterShoot,
     //Facilitation abilities - Captor, Captor, Captor, Restraint
-    Capture, Detain, Execution, Restrain,
+   
     //Subversion abilities - Eclipse, Eclipse, Escapist, Shitfter
     Brilliance, Shade, SwiftFoot, Shift,
     //Elimination abilites - Revenant, Revenant, Trapper
-    Plot, Enact, Trap,
+    Plot, Enact, 
     //Provision abilites - Radiant, Obstanance
-    Illuminate, Obstacle,
+    Illuminate,
     //Outsider abilites - Gazer, Gazer
-    Starfield, Bisect,
+    
     //Nuetral Killer abilities - Traitor, SoulboundProtector, SoulboundAggressor, Starchild, Starchild, Starchild
-    Bloodthirst, Care, Resurgence, Ferocity, Countdown, MeteorShower, Twilight
-    //Future implementations Blot, Ravish
+    Bloodthirst, Douse, Ignite, Swap
+    //Future implementations 
 }
 
 [CreateAssetMenu(fileName = "NewRole", menuName = "Role Asset")]
@@ -36,10 +36,11 @@ public class RoleAsset : ScriptableObject
     public bool pairedRole;
     public RoleAsset pairedWith;
     public AbilityType dayAbility;
-    public AbilityType duskAbility;
+    public AbilityType duskAbility1;
+    public AbilityType duskAbility2;
     public AbilityType nightAbility;
-    public float abilityValue;
-    public float abilityDuration;
-    public float abilityRange;
-    public int abilityUsageLimit;
+    public int dayAbilityUsageLimit1;
+    public int duskAbilityUsageLimit1;
+    public int duskAbilityUsageLimit2;
+    public int nightAbilityUsageLimit1;
 }

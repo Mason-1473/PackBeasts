@@ -13,8 +13,16 @@ MonoBehaviour:
   m_Name: Arbiter
   m_EditorClassIdentifier: 
   roleName: Arbiter
+  icon: {fileID: -4814602948268691930, guid: cb3a459533ede2b44a31afbe3abac85d, type: 3}
   category: 0
   isUnique: 0
-  isAnalysis: 0
-  pairedRole: {fileID: 0}
-  icon: {fileID: -4814602948268691930, guid: cb3a459533ede2b44a31afbe3abac85d, type: 3}
+  pairedRole: 0
+  pairedWith: {fileID: 0}
+  dayAbility: 0
+  duskAbility1: 4
+  duskAbility2: 10
+  nightAbility: 9
+  dayAbilityUsageLimit1: 0
+  duskAbilityUsageLimit1: 1
+  duskAbilityUsageLimit2: 1
+  nightAbilityUsageLimit1: 1

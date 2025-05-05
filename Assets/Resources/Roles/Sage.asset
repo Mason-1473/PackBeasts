@@ -13,8 +13,16 @@ MonoBehaviour:
   m_Name: Sage
   m_EditorClassIdentifier: 
   roleName: Sage
+  icon: {fileID: 726965020562021467, guid: d2885c2cbfb0adb4c9691b6c9b4dadf8, type: 3}
   category: 0
   isUnique: 0
-  isAnalysis: 1
-  pairedRole: {fileID: 0}
-  icon: {fileID: 726965020562021467, guid: d2885c2cbfb0adb4c9691b6c9b4dadf8, type: 3}
+  pairedRole: 0
+  pairedWith: {fileID: 0}
+  dayAbility: 0
+  duskAbility1: 2
+  duskAbility2: 0
+  nightAbility: 0
+  dayAbilityUsageLimit1: 0
+  duskAbilityUsageLimit1: 99
+  duskAbilityUsageLimit2: 0
+  nightAbilityUsageLimit1: 0

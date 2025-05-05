@@ -5,8 +5,8 @@ using System;
 public class AttackInstance
 {
     public BaseAttackLevel baseLevel = BaseAttackLevel.None;
-    public bool isRampage = false;
-    public bool isPhantomed = false;
+    public bool isRampage = false; //attack every visitor 
+    public bool isPhantomed = false; //you don't actually visit to attack
 
     public AttackInstance(BaseAttackLevel baseLevel, bool rampage = false, bool phantomed = false)
     {

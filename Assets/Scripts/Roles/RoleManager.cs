@@ -1145,4 +1145,23 @@ public class RoleManager : MonoBehaviourPunCallbacks
             Debug.Log($"Received {abilityType} result: {result}");
         }
     }
+
+    public void GrantChargedAttack(Player player)
+    {
+        if (GameManager.Instance.PlayerInfos.TryGetValue(player.ActorNumber, out PlayerInfo playerInfo))
+        {
+            playerInfo.attackInstance.baseLevel = BaseAttackLevel.Charged;
+            photonView.RPC("SyncAttackLevel", RpcTarget.All, player.ActorNumber, "Charged");
+        }
+    }
+
+    [PunRPC]
+    private void SyncAttackLevel(int actorNumber, string attackLevel)
+    {
+        Player player = PhotonNetwork.PlayerList.FirstOrDefault(p => p.ActorNumber == actorNumber);
+        if (player != null && GameManager.Instance.PlayerInfos.TryGetValue(actorNumber, out PlayerInfo playerInfo))
+        {
+            playerInfo.attackInstance.baseLevel = (BaseAttackLevel)System.Enum.Parse(typeof(BaseAttackLevel), attackLevel);
+        }
+    }
 }

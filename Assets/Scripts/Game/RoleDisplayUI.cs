@@ -6,13 +6,10 @@ using Photon.Realtime;
 public class RoleDisplayUI : MonoBehaviourPun
 {
     [SerializeField] private TextMeshProUGUI roleText;
-    [SerializeField] private GameObject continueButton;
     [SerializeField] private TextMeshProUGUI statusText;
     [SerializeField] private float autoTransitionTime = 10f;
 
     private float timer;
-    private bool hasClickedContinue = false;
-    private int readyPlayers = 0;
 
     private void Start()
     {
@@ -28,47 +25,17 @@ public class RoleDisplayUI : MonoBehaviourPun
             Debug.LogError("GameManager or PlayerInfo not found!");
         }
 
-        statusText.text = PhotonNetwork.IsMasterClient ? "Press Continue to start!" : "Waiting for host...";
+        statusText.text = $"Transitioning to GameScene in {Mathf.CeilToInt(timer)} seconds...";
     }
 
     private void Update()
     {
-        if (PhotonNetwork.IsMasterClient)
-        {
-            timer -= Time.deltaTime;
-            if (timer <= 0 && !hasClickedContinue)
-            {
-                photonView.RPC("SignalContinue", RpcTarget.All);
-            }
-        }
-    }
+        timer -= Time.deltaTime;
+        statusText.text = $"Transitioning to GameScene in {Mathf.CeilToInt(timer)} seconds...";
 
-    public void OnContinueButtonClicked()
-    {
-        if (hasClickedContinue) return;
-        hasClickedContinue = true;
-
-        if (PhotonNetwork.IsMasterClient)
+        if (PhotonNetwork.IsMasterClient && timer <= 0)
         {
             photonView.RPC("SignalContinue", RpcTarget.All);
-        }
-        else
-        {
-            photonView.RPC("PlayerReady", RpcTarget.MasterClient);
-            statusText.text = "Ready! Waiting for host...";
-        }
-    }
-
-    [PunRPC]
-    private void PlayerReady()
-    {
-        if (PhotonNetwork.IsMasterClient)
-        {
-            readyPlayers++;
-            if (readyPlayers >= PhotonNetwork.PlayerList.Length)
-            {
-                photonView.RPC("SignalContinue", RpcTarget.All);
-            }
         }
     }
 

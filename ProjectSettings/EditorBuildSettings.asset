@@ -12,6 +12,9 @@ EditorBuildSettings:
     path: Assets/Scenes/WaitingRoom.unity
     guid: bcdd5af4e3e2b2642b4c27a3293a8db0
   - enabled: 1
+    path: Assets/Scenes/RoleReveal.unity
+    guid: 3c9df0975b758294988de237fe3255c7
+  - enabled: 1
     path: Assets/Scenes/GameScene.unity
     guid: 8c9cfa26abfee488c85f1582747f6a02
   m_configObjects:

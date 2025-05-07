@@ -22,11 +22,12 @@ public class GameManager : MonoBehaviourPunCallbacks
     public float votingPhaseDuration = 30f;
     public float duskPhaseDuration = 30f;
     public float nightPhaseDuration = 30f;
-    public TMPro.TextMeshProUGUI phaseText;
+    public TextMeshProUGUI phaseText;
+    private float phaseTimeRemaining;
 
     private RoleManager roleManager;
     private Dictionary<int, PlayerInfo> playerInfos;
-    public IReadOnlyDictionary<int, PlayerInfo> PlayerInfos => playerInfos; // Public read-only access
+    public IReadOnlyDictionary<int, PlayerInfo> PlayerInfos => playerInfos;
 
     private List<int> playersInJudgement = new List<int>();
     private int currentJudgementPlayer = -1;
@@ -57,27 +58,30 @@ public class GameManager : MonoBehaviourPunCallbacks
     {
         if (!PhotonNetwork.IsMasterClient) return;
 
-        if (PhotonNetwork.CurrentRoom.PlayerCount != 20)
-        {
-            Debug.LogWarning("Game requires exactly 20 players to start.");
-            return;
-        }
+        // Instead of checking for exactly 20 players, allow game to start with any number of players for testing
+        // if (PhotonNetwork.CurrentRoom.PlayerCount != 20)
+        // {
+        //     Debug.LogWarning("Game requires exactly 20 players to start.");
+        //     return;
+        // }
 
         dayCount = 1;
         currentPhase = GamePhase.Day;
         currentSubPhase = DaySubPhase.Discussion;
+        phaseTimeRemaining = discussionPhaseDuration;
         UpdatePhaseUI();
-        photonView.RPC("SyncPhase", RpcTarget.AllBuffered, (int)currentPhase, (int)currentSubPhase, dayCount);
+        photonView.RPC("SyncPhase", RpcTarget.AllBuffered, (int)currentPhase, (int)currentSubPhase, dayCount, phaseTimeRemaining);
         roleManager.AssignRolesToPlayers();
         StartCoroutine(DiscussionPhase());
     }
 
     [PunRPC]
-    void SyncPhase(int phase, int subPhase, int day)
+    void SyncPhase(int phase, int subPhase, int day, float timeRemaining)
     {
         currentPhase = (GamePhase)phase;
         currentSubPhase = (DaySubPhase)subPhase;
         dayCount = day;
+        phaseTimeRemaining = timeRemaining;
         UpdatePhaseUI();
     }
 
@@ -95,13 +99,34 @@ public class GameManager : MonoBehaviourPunCallbacks
         Debug.Log($"Phase: {phaseString}");
     }
 
+    public float GetPhaseRemainingTime()
+    {
+        return phaseTimeRemaining;
+    }
+
+    private void Update()
+    {
+        if (PhotonNetwork.IsMasterClient)
+        {
+            phaseTimeRemaining -= Time.deltaTime;
+            photonView.RPC("SyncTimer", RpcTarget.All, phaseTimeRemaining);
+        }
+    }
+
+    [PunRPC]
+    private void SyncTimer(float timeRemaining)
+    {
+        phaseTimeRemaining = timeRemaining;
+    }
+
     IEnumerator DiscussionPhase()
     {
         yield return new WaitForSeconds(discussionPhaseDuration);
         if (PhotonNetwork.IsMasterClient)
         {
             currentSubPhase = DaySubPhase.Voting;
-            photonView.RPC("SyncPhase", RpcTarget.AllBuffered, (int)currentPhase, (int)currentSubPhase, dayCount);
+            phaseTimeRemaining = votingPhaseDuration;
+            photonView.RPC("SyncPhase", RpcTarget.AllBuffered, (int)currentPhase, (int)currentSubPhase, dayCount, phaseTimeRemaining);
             StartCoroutine(VotingPhase());
         }
     }
@@ -184,7 +209,8 @@ public class GameManager : MonoBehaviourPunCallbacks
             {
                 votes.Clear();
                 currentSubPhase = DaySubPhase.Voting;
-                photonView.RPC("SyncPhase", RpcTarget.AllBuffered, (int)currentPhase, (int)currentSubPhase, dayCount);
+                phaseTimeRemaining = votingPhaseDuration;
+                photonView.RPC("SyncPhase", RpcTarget.AllBuffered, (int)currentPhase, (int)currentSubPhase, dayCount, phaseTimeRemaining);
                 StartCoroutine(VotingPhase());
             }
             else
@@ -201,7 +227,8 @@ public class GameManager : MonoBehaviourPunCallbacks
         votes.Clear();
         playersInJudgement.Clear();
         currentJudgementPlayer = -1;
-        photonView.RPC("SyncPhase", RpcTarget.AllBuffered, (int)currentPhase, (int)currentSubPhase, dayCount);
+        phaseTimeRemaining = duskPhaseDuration;
+        photonView.RPC("SyncPhase", RpcTarget.AllBuffered, (int)currentPhase, (int)currentSubPhase, dayCount, phaseTimeRemaining);
         StartCoroutine(DuskPhase());
     }
 
@@ -212,7 +239,8 @@ public class GameManager : MonoBehaviourPunCallbacks
         if (PhotonNetwork.IsMasterClient)
         {
             currentPhase = GamePhase.Night;
-            photonView.RPC("SyncPhase", RpcTarget.AllBuffered, (int)currentPhase, (int)currentSubPhase, dayCount);
+            phaseTimeRemaining = nightPhaseDuration;
+            photonView.RPC("SyncPhase", RpcTarget.AllBuffered, (int)currentPhase, (int)currentSubPhase, dayCount, phaseTimeRemaining);
             StartCoroutine(NightPhase());
         }
     }
@@ -227,7 +255,8 @@ public class GameManager : MonoBehaviourPunCallbacks
             dayCount++;
             currentPhase = GamePhase.Day;
             currentSubPhase = DaySubPhase.Discussion;
-            photonView.RPC("SyncPhase", RpcTarget.AllBuffered, (int)currentPhase, (int)currentSubPhase, dayCount);
+            phaseTimeRemaining = discussionPhaseDuration;
+            photonView.RPC("SyncPhase", RpcTarget.AllBuffered, (int)currentPhase, (int)currentSubPhase, dayCount, phaseTimeRemaining);
             StartCoroutine(DiscussionPhase());
         }
     }
@@ -310,6 +339,7 @@ public class GameManager : MonoBehaviourPunCallbacks
             {
                 PhotonNetwork.Destroy(playerInfo.gameObject);
                 playerInfos.Remove(actorNumber);
+                photonView.RPC("NotifyPlayerDeath", RpcTarget.All, actorNumber);
             }
         }
 

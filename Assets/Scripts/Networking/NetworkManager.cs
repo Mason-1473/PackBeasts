@@ -29,6 +29,7 @@ public class NetworkManager : MonoBehaviourPunCallbacks
     private bool isJoining = false;
     private int retryCount = 0;
     private TypedLobby gameLobby = new TypedLobby("GameLobby", LobbyType.Default);
+    private bool isConnecting = false;
 
     private void Awake()
     {
@@ -41,15 +42,29 @@ public class NetworkManager : MonoBehaviourPunCallbacks
 
         Instance = this;
         DontDestroyOnLoad(gameObject); // Keep across scene loads
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    private void OnDestroy()
+    {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
     void Start()
     {
+        // Check if PlayerSimulator is active in the scene
+        PlayerSimulator simulator = FindFirstObjectByType<PlayerSimulator>();
+        if (simulator != null && simulator.isSimulationEnabled)
+        {
+            Debug.Log("[NetworkManager] PlayerSimulator detected. Skipping connection logic.");
+            return;
+        }
+
         if (joinGameButton != null)
             joinGameButton.interactable = false;
         else
             Debug.LogWarning("joinGameButton is not assigned in NetworkManager.");
-        
+
         if (createGameButton != null)
             createGameButton.interactable = false;
         else
@@ -60,20 +75,70 @@ public class NetworkManager : MonoBehaviourPunCallbacks
 
         PhotonNetwork.AutomaticallySyncScene = true;
         PhotonNetwork.GameVersion = "1.0";
-        PhotonNetwork.ConnectUsingSettings();
-        UpdateStatus("Connecting to Photon...");
-        
+        if (!PhotonNetwork.IsConnected && !isConnecting)
+        {
+            isConnecting = true;
+            PhotonNetwork.ConnectUsingSettings();
+            UpdateStatus("Connecting to Photon...");
+        }
+
         Debug.Log($"PhotonView in Start: {photonView != null}");
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (scene.name == GAME_SCENE && PhotonNetwork.IsMasterClient)
+        {
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.StartGame();
+                Debug.Log("Started game via GameManager.");
+            }
+            else
+            {
+                Debug.LogError("GameManager.Instance is null in GameScene. Ensure GameManager is present.");
+            }
+        }
+
+        if (scene.name == GAME_SCENE && playerPrefab != null)
+        {
+            GameObject playerObject = PhotonNetwork.Instantiate(playerPrefab.name, Vector3.zero, Quaternion.identity);
+            if (playerObject.GetComponent<PlayerInfo>() == null)
+            {
+                Debug.LogError("Player prefab must have a PlayerInfo component!");
+            }
+            else
+            {
+                GameManager.Instance.RegisterPlayer(PhotonNetwork.LocalPlayer, playerObject);
+                Debug.Log($"Registered player {PhotonNetwork.LocalPlayer.ActorNumber} with GameManager.");
+            }
+        }
+        else if (scene.name == GAME_SCENE)
+        {
+            Debug.LogError("playerPrefab is not assigned in NetworkManager. Cannot spawn player in GameScene.");
+        }
     }
 
     public override void OnConnectedToMaster()
     {
+        if (FindFirstObjectByType<PlayerSimulator>()?.isSimulationEnabled == true)
+        {
+            Debug.Log("[NetworkManager] Skipping OnConnectedToMaster logic due to PlayerSimulator.");
+            return;
+        }
+
         UpdateStatus("Connected! Joining lobby...");
         PhotonNetwork.JoinLobby(gameLobby);
     }
 
     public override void OnJoinedLobby()
     {
+        if (FindFirstObjectByType<PlayerSimulator>()?.isSimulationEnabled == true)
+        {
+            Debug.Log("[NetworkManager] Skipping OnJoinedLobby logic due to PlayerSimulator.");
+            return;
+        }
+
         UpdateStatus("In lobby. Ready to join or create a game.");
         if (joinGameButton != null) joinGameButton.interactable = true;
         if (createGameButton != null) createGameButton.interactable = true;
@@ -127,6 +192,12 @@ public class NetworkManager : MonoBehaviourPunCallbacks
 
     public override void OnJoinRandomFailed(short returnCode, string message)
     {
+        if (FindFirstObjectByType<PlayerSimulator>()?.isSimulationEnabled == true)
+        {
+            Debug.Log("[NetworkManager] Skipping OnJoinRandomFailed logic due to PlayerSimulator.");
+            return;
+        }
+
         retryCount++;
         UpdateStatus($"No rooms found. Retry {retryCount}/2...");
         if (retryCount >= 2)
@@ -150,6 +221,12 @@ public class NetworkManager : MonoBehaviourPunCallbacks
 
     public override void OnJoinedRoom()
     {
+        if (FindFirstObjectByType<PlayerSimulator>()?.isSimulationEnabled == true)
+        {
+            Debug.Log("[NetworkManager] Skipping OnJoinedRoom logic due to PlayerSimulator.");
+            return;
+        }
+
         isJoining = false;
         retryCount = 0;
         string roomName = PhotonNetwork.CurrentRoom.Name;
@@ -320,20 +397,11 @@ public class NetworkManager : MonoBehaviourPunCallbacks
         }
     }
 
-    // Called when the GameScene is loaded
-    void OnLevelWasLoaded(int level)
+    public void StartGameAfterRoleAssignment()
     {
-        if (SceneManager.GetActiveScene().name == GAME_SCENE && PhotonNetwork.IsMasterClient)
+        if (PhotonNetwork.IsMasterClient)
         {
-            if (GameManager.Instance != null)
-            {
-                GameManager.Instance.StartGame();
-                Debug.Log("Started game via GameManager.");
-            }
-            else
-            {
-                Debug.LogError("GameManager.Instance is null in GameScene. Ensure GameManager is present.");
-            }
+            PhotonNetwork.LoadLevel("RoleReveal");
         }
     }
 }

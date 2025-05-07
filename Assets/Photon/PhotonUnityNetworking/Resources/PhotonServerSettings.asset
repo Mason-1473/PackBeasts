@@ -59,6 +59,14 @@ MonoBehaviour:
   - SyncDelayedResult
   - SyncVigilanteBullets
   - SyncVigilanteReloadFlag
+  - ApplyMark
+  - NotifyPlayerDeath
+  - ReceiveMessage
+  - RecordVote
+  - SignalContinue
+  - SyncAttackLevel
+  - SyncTimer
+  - UpdateTimer
   DisableAutoOpenWizard: 1
   ShowSettings: 1
   DevRegionSetOnce: 0

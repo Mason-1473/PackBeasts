@@ -11,8 +11,7 @@ public class WaitingRoomManager : MonoBehaviourPunCallbacks
 {
     public Vector3 spawnCenter = Vector3.zero;
     public float spawnRadius = 5f;
-    public int maxPlayers = 4; // change this to 20 after testing
-
+    public int maxPlayers = 20;
     [SerializeField] private RoleManager roleManager;
     [SerializeField] private GameManager gameManager;
 

@@ -19,10 +19,12 @@ MonoBehaviour:
   pairedRole: 0
   pairedWith: {fileID: 0}
   dayAbility: 0
-  duskAbility1: 3
+  duskAbility1: 2
   duskAbility2: 0
-  nightAbility: 0
+  nightAbility1: 0
+  nightAbility2: 0
   dayAbilityUsageLimit1: 0
   duskAbilityUsageLimit1: 2
   duskAbilityUsageLimit2: 0
   nightAbilityUsageLimit1: 0
+  nightAbilityUsageLimit2: 0

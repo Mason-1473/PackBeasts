@@ -21,8 +21,10 @@ MonoBehaviour:
   dayAbility: 0
   duskAbility1: 0
   duskAbility2: 0
-  nightAbility: 26
+  nightAbility1: 17
+  nightAbility2: 0
   dayAbilityUsageLimit1: 0
   duskAbilityUsageLimit1: 0
   duskAbilityUsageLimit2: 0
   nightAbilityUsageLimit1: 99
+  nightAbilityUsageLimit2: 0

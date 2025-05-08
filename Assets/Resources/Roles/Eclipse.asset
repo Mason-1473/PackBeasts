@@ -18,11 +18,13 @@ MonoBehaviour:
   isUnique: 1
   pairedRole: 0
   pairedWith: {fileID: 0}
-  dayAbility: 15
-  duskAbility1: 16
+  dayAbility: 10
+  duskAbility1: 11
   duskAbility2: 0
-  nightAbility: 0
+  nightAbility1: 0
+  nightAbility2: 0
   dayAbilityUsageLimit1: 1
   duskAbilityUsageLimit1: 99
   duskAbilityUsageLimit2: 0
   nightAbilityUsageLimit1: 0
+  nightAbilityUsageLimit2: 0

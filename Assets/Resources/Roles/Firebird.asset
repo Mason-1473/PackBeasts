@@ -12,17 +12,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4dd98db561dbdbd469e43b04da597cc6, type: 3}
   m_Name: Firebird
   m_EditorClassIdentifier: 
-  roleName: 
-  icon: {fileID: 0}
+  roleName: Firebird
+  icon: {fileID: 21300000, guid: 14b9666886f65ea41ab1b4e0aa54df39, type: 3}
   category: 0
   isUnique: 0
   pairedRole: 0
   pairedWith: {fileID: 0}
   dayAbility: 0
-  duskAbility1: 0
+  duskAbility1: 20
   duskAbility2: 0
-  nightAbility: 0
+  nightAbility1: 18
+  nightAbility2: 19
   dayAbilityUsageLimit1: 0
-  duskAbilityUsageLimit1: 0
+  duskAbilityUsageLimit1: 99
   duskAbilityUsageLimit2: 0
-  nightAbilityUsageLimit1: 0
+  nightAbilityUsageLimit1: 99
+  nightAbilityUsageLimit2: 99

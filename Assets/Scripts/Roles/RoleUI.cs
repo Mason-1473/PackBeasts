@@ -8,7 +8,8 @@ public class RoleUI : MonoBehaviour
     public Button dayAbilityButton;
     public Button duskAbilityButton1;
     public Button duskAbilityButton2;
-    public Button nightAbilityButton;
+    public Button nightAbilityButton1;
+    public Button nightAbilityButton2;
     private RoleAsset role;
     private RoleManager roleManager;
 
@@ -21,8 +22,10 @@ public class RoleUI : MonoBehaviour
         duskAbilityButton1.onClick.AddListener(() => roleManager.UseAbility(role.duskAbility1));
     if (duskAbilityButton2 != null)
         duskAbilityButton2.onClick.AddListener(() => roleManager.UseAbility(role.duskAbility2));
-    if (nightAbilityButton != null)
-        nightAbilityButton.onClick.AddListener(() => roleManager.UseAbility(role.nightAbility));
+    if (nightAbilityButton1 != null)
+        nightAbilityButton1.onClick.AddListener(() => roleManager.UseAbility(role.nightAbility1));
+    if (nightAbilityButton2 != null)
+        nightAbilityButton2.onClick.AddListener(() => roleManager.UseAbility(role.nightAbility2));
     }
 
     void Update()
@@ -34,8 +37,10 @@ public class RoleUI : MonoBehaviour
         duskAbilityButton1.gameObject.SetActive(GameManager.Instance.currentPhase == GamePhase.Dusk && role.duskAbility1 != AbilityType.None);
     if (duskAbilityButton2 != null)
         duskAbilityButton2.gameObject.SetActive(GameManager.Instance.currentPhase == GamePhase.Dusk && role.duskAbility2 != AbilityType.None);
-    if (nightAbilityButton != null)
-        nightAbilityButton.gameObject.SetActive(GameManager.Instance.currentPhase == GamePhase.Night && role.nightAbility != AbilityType.None);
+    if (nightAbilityButton1 != null)
+        nightAbilityButton1.gameObject.SetActive(GameManager.Instance.currentPhase == GamePhase.Night && role.nightAbility1 != AbilityType.None);
+     if (nightAbilityButton2 != null)
+        nightAbilityButton2.gameObject.SetActive(GameManager.Instance.currentPhase == GamePhase.Night && role.nightAbility2 != AbilityType.None);
     }
 
     public void SetRole(RoleAsset roleAsset)

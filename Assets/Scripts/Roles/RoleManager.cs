@@ -40,6 +40,11 @@ public class RoleManager : MonoBehaviourPunCallbacks
 
     void Awake()
     {
+        if (GetComponent<PhotonView>() == null)
+        {
+            gameObject.AddComponent<PhotonView>();
+        }
+        DontDestroyOnLoad(gameObject); // Ensure RoleManager persists across scenes
         allRoles = Resources.LoadAll<RoleAsset>("Roles").ToList();
         Debug.Log($"Loaded {allRoles.Count} roles from Resources/Roles");
 
@@ -83,18 +88,84 @@ public class RoleManager : MonoBehaviourPunCallbacks
 
         playerRoleAssignments = new Dictionary<int, RoleAsset>();
         var availableRoles = new List<RoleAsset>(allRoles);
-        int playerCount = PhotonNetwork.CurrentRoom.PlayerCount;
+        var players = GameManager.Instance.PlayerInfos.Keys.ToArray(); // Use all registered players from GameManager
+        int playerCount = players.Length;
         Debug.Log($"Assigning roles for {playerCount} players");
 
-        int packCount = 5;
-        int dominionCount = 11;
-        int neutralKillerCount = playerCount - packCount - dominionCount;
-        int outsiderCount = 0;
-
-        if (Random.value > 0.5f)
+        // Step 1: Assign Dominion (target ~11, range [0-19])
+        int dominionCount = 11; // Target
+        if (Random.value < 0.3f) // 30% chance to deviate significantly from target
         {
-            packCount--;
-            neutralKillerCount++;
+            dominionCount = Random.Range(0, Mathf.Min(20, playerCount + 1)); // Range [0-19], capped by player count
+        }
+        else if (Random.value < 0.6f) // 30% chance for slight deviation (60% total deviation chance)
+        {
+            dominionCount = Random.Range(9, 14); // Slight deviation around 11 (9-13)
+        }
+        // Ensure Dominion doesn't exceed available players
+        dominionCount = Mathf.Min(dominionCount, playerCount);
+
+        // Step 2: Assign Pack (target ~5, range [1-5])
+        int packCount = 5; // Target
+        if (Random.value < 0.3f) // 30% chance to deviate
+        {
+            packCount = Random.Range(1, 6); // Range [1-5]
+        }
+        else if (Random.value < 0.6f) // 30% chance for slight deviation
+        {
+            packCount = Random.Range(4, 6); // Slight deviation around 5 (4-5)
+        }
+        // Ensure Pack doesn't exceed remaining players after Dominion and meets minimum of 1
+        packCount = Mathf.Min(packCount, playerCount - dominionCount);
+        packCount = Mathf.Max(packCount, 1);
+
+        // Step 3: Calculate remaining players for Neutral Killers and Outsiders
+        int remainingPlayers = playerCount - dominionCount - packCount;
+
+        // Step 4: Assign Neutral Killers (more frequent if Pack < 5)
+        int neutralKillerCount = 0;
+        if (remainingPlayers > 0)
+        {
+            // Base allocation: Split remaining players between Neutral Killers and Outsiders
+            neutralKillerCount = remainingPlayers / 2;
+            // Increase Neutral Killers if Pack is less than 5
+            if (packCount < 5)
+            {
+                float packDeficitFactor = (5 - packCount) / 5f; // E.g., if Pack=3, factor=0.4
+                int additionalNK = Mathf.RoundToInt(remainingPlayers * packDeficitFactor * 0.5f); // Add up to 50% more based on deficit
+                neutralKillerCount += additionalNK;
+            }
+            neutralKillerCount = Mathf.Min(neutralKillerCount, remainingPlayers); // Cap by remaining players
+        }
+
+        // Step 5: Assign Outsiders (more frequent if Pack < 5, only if 2+ other factions)
+        int outsiderCount = 0;
+        int remainingAfterNK = remainingPlayers - neutralKillerCount;
+
+        // Check if at least 2 other factions are present
+        int factionCount = 0;
+        if (dominionCount > 0) factionCount++;
+        if (packCount > 0) factionCount++; // Already guaranteed to be at least 1
+        if (neutralKillerCount > 0) factionCount++;
+
+        if (factionCount >= 2 && remainingAfterNK > 0)
+        {
+            outsiderCount = remainingAfterNK; // Allocate remaining players to Outsiders
+            // Increase Outsiders if Pack is less than 5
+            if (packCount < 5)
+            {
+                float packDeficitFactor = (5 - packCount) / 5f;
+                int additionalOutsiders = Mathf.RoundToInt(remainingAfterNK * packDeficitFactor * 0.5f);
+                outsiderCount += additionalOutsiders;
+            }
+            outsiderCount = Mathf.Min(outsiderCount, remainingAfterNK); // Cap by remaining players
+        }
+
+        // Step 6: Adjust Neutral Killers to fill any remaining slots (since they have no upper limit)
+        int finalRemaining = playerCount - dominionCount - packCount - neutralKillerCount - outsiderCount;
+        if (finalRemaining > 0)
+        {
+            neutralKillerCount += finalRemaining; // Assign remaining slots to Neutral Killers
         }
 
         Debug.Log($"Faction Distribution: Dominion={dominionCount}, Pack={packCount}, NeutralKillers={neutralKillerCount}, Outsiders={outsiderCount}");
@@ -103,16 +174,17 @@ public class RoleManager : MonoBehaviourPunCallbacks
         var dominionRoles = availableRoles.Where(r => r.category == RoleCategory.Dominion).ToList();
         var packRoles = availableRoles.Where(r => r.category == RoleCategory.Pack).ToList();
         var neutralKillerRoles = availableRoles.Where(r => r.category == RoleCategory.NeutralKiller).ToList();
+        var outsiderRoles = availableRoles.Where(r => r.category == RoleCategory.Outsider).ToList();
 
-        // Ensure unique roles (Eclipse, Escapist, Revenant)
+        // Step 7: Ensure unique roles (Eclipse, Escapist, Revenant)
         var uniqueRoles = new List<string> { "Eclipse", "Escapist", "Revenant" };
         foreach (var roleName in uniqueRoles)
         {
             var role = availableRoles.FirstOrDefault(r => r.roleName == roleName && r.isUnique);
-            if (role != null && Random.value > 0.5f)
+            if (role != null && Random.value > 0.5f && playerCount > 0)
             {
                 selectedRoles.Add(role);
-                availableRoles.Remove(role); // Remove unique roles
+                availableRoles.Remove(role);
                 if (role.category == RoleCategory.Pack)
                     packCount--;
                 else if (role.category == RoleCategory.NeutralKiller)
@@ -121,12 +193,12 @@ public class RoleManager : MonoBehaviourPunCallbacks
             }
             else
             {
-                Debug.LogWarning($"Unique role {roleName} not included (not found or random skip).");
+                Debug.LogWarning($"Unique role {roleName} not included (not found, random skip, or no players left).");
             }
         }
 
-        // Assign Dominion roles
-        for (int i = 0; i < dominionCount && dominionRoles.Count > 0; i++)
+        // Step 8: Assign Dominion roles
+        for (int i = 0; i < dominionCount && dominionRoles.Count > 0 && selectedRoles.Count < playerCount; i++)
         {
             int idx = Random.Range(0, dominionRoles.Count);
             var role = dominionRoles[idx];
@@ -139,8 +211,8 @@ public class RoleManager : MonoBehaviourPunCallbacks
             Debug.Log($"Assigned Dominion role: {role.roleName} (Unique: {role.isUnique})");
         }
 
-        // Assign Pack roles
-        for (int i = 0; i < packCount && packRoles.Count > 0; i++)
+        // Step 9: Assign Pack roles
+        for (int i = 0; i < packCount && packRoles.Count > 0 && selectedRoles.Count < playerCount; i++)
         {
             int idx = Random.Range(0, packRoles.Count);
             var role = packRoles[idx];
@@ -153,8 +225,8 @@ public class RoleManager : MonoBehaviourPunCallbacks
             Debug.Log($"Assigned Pack role: {role.roleName} (Unique: {role.isUnique})");
         }
 
-        // Assign NeutralKiller roles
-        for (int i = 0; i < neutralKillerCount && neutralKillerRoles.Count > 0; i++)
+        // Step 10: Assign NeutralKiller roles
+        for (int i = 0; i < neutralKillerCount && neutralKillerRoles.Count > 0 && selectedRoles.Count < playerCount; i++)
         {
             int idx = Random.Range(0, neutralKillerRoles.Count);
             var role = neutralKillerRoles[idx];
@@ -167,13 +239,27 @@ public class RoleManager : MonoBehaviourPunCallbacks
             Debug.Log($"Assigned NeutralKiller role: {role.roleName} (Unique: {role.isUnique})");
         }
 
-        // Fill remaining slots with non-unique roles
+        // Step 11: Assign Outsider roles
+        for (int i = 0; i < outsiderCount && outsiderRoles.Count > 0 && selectedRoles.Count < playerCount; i++)
+        {
+            int idx = Random.Range(0, outsiderRoles.Count);
+            var role = outsiderRoles[idx];
+            selectedRoles.Add(role);
+            if (role.isUnique)
+            {
+                availableRoles.Remove(role);
+                outsiderRoles.RemoveAt(idx);
+            }
+            Debug.Log($"Assigned Outsider role: {role.roleName} (Unique: {role.isUnique})");
+        }
+
+        // Step 12: Fill remaining slots with non-unique roles
         while (selectedRoles.Count < playerCount && availableRoles.Count > 0)
         {
             var nonUniqueRoles = availableRoles.Where(r => !r.isUnique).ToList();
             if (nonUniqueRoles.Count == 0)
             {
-                Debug.LogError("No non-unique roles available to fill remaining slots.");
+                Debug.LogError("No non-unique roles available to fill remaining slots. Check your role assets in Resources/Roles.");
                 break;
             }
             int idx = Random.Range(0, nonUniqueRoles.Count);
@@ -184,16 +270,15 @@ public class RoleManager : MonoBehaviourPunCallbacks
 
         if (selectedRoles.Count < playerCount)
         {
-            Debug.LogError($"Failed to select {playerCount} roles! Selected {selectedRoles.Count}");
+            Debug.LogError($"Failed to select {playerCount} roles! Selected {selectedRoles.Count}. Ensure enough RoleAssets are available in Resources/Roles.");
             return;
         }
 
-        // Assign roles to players
-        var players = PhotonNetwork.PlayerList;
+        // Step 13: Assign roles to players
         for (int i = 0; i < players.Length; i++)
         {
             int roleIdx = Random.Range(0, selectedRoles.Count);
-            playerRoleAssignments[players[i].ActorNumber] = selectedRoles[roleIdx];
+            playerRoleAssignments[players[i]] = selectedRoles[roleIdx];
             if (selectedRoles[roleIdx].roleName == "Vindicator")
             {
                 var dominionPlayers = playerRoleAssignments
@@ -202,11 +287,11 @@ public class RoleManager : MonoBehaviourPunCallbacks
                     .ToList();
                 if (dominionPlayers.Count > 0)
                 {
-                    vindicatorMissions[players[i].ActorNumber] = dominionPlayers[Random.Range(0, dominionPlayers.Count)];
+                    vindicatorMissions[players[i]] = dominionPlayers[Random.Range(0, dominionPlayers.Count)];
                 }
             }
+            Debug.Log($"Assigned role {(selectedRoles[roleIdx] != null ? selectedRoles[roleIdx].roleName : "None")} to player {players[i]}");
             selectedRoles.RemoveAt(roleIdx);
-            Debug.Log($"Assigned role {playerRoleAssignments[players[i].ActorNumber].roleName} to player {players[i].ActorNumber}");
         }
 
         photonView.RPC("SyncRoleAssignments", RpcTarget.AllBuffered, playerRoleAssignments.Keys.ToArray(), playerRoleAssignments.Values.Select(r => r.roleName).ToArray());
@@ -223,6 +308,10 @@ public class RoleManager : MonoBehaviourPunCallbacks
             {
                 playerRoleAssignments[actorNumbers[i]] = role;
             }
+            else
+            {
+                Debug.LogWarning($"Failed to sync role {roleNames[i]} for ActorNumber {actorNumbers[i]}. Role not found in allRoles.");
+            }
         }
         Debug.Log($"Synced roles: {string.Join(", ", playerRoleAssignments.Select(kv => $"Player {kv.Key}: {kv.Value.roleName}"))}");
         DisplayLocalPlayerRole();
@@ -234,14 +323,21 @@ public class RoleManager : MonoBehaviourPunCallbacks
         if (roleUIPrefab == null)
         {
             roleUIPrefab = Resources.Load<GameObject>("RoleUIPrefab");
-            if (roleUIPrefab == null) Debug.LogError("Could not load RoleUIPrefab from Resources!");
+            if (roleUIPrefab == null)
+            {
+                Debug.LogError("Could not load RoleUIPrefab from Resources! Ensure 'RoleUIPrefab' is in Assets/Resources/ and named exactly 'RoleUIPrefab'.");
+                return;
+            }
         }
         if (uiParent == null)
         {
             uiParent = GameObject.Find("Canvas")?.transform;
-            if (uiParent == null) Debug.LogError("Canvas not found for uiParent!");
+            if (uiParent == null)
+            {
+                Debug.LogError("Canvas not found for uiParent! Ensure a Canvas exists in the scene.");
+                return;
+            }
         }
-        if (roleUIPrefab == null || uiParent == null) return;
 
         int localActorNumber = PhotonNetwork.LocalPlayer.ActorNumber;
         if (!playerRoleAssignments.TryGetValue(localActorNumber, out RoleAsset localRole))
@@ -551,10 +647,15 @@ public class RoleManager : MonoBehaviourPunCallbacks
             canUse = true;
             usageLimit = (abilityType == localRole.duskAbility1) ? localRole.duskAbilityUsageLimit1 : localRole.duskAbilityUsageLimit2;
         }
-        else if (GameManager.Instance.currentPhase == GamePhase.Night && abilityType == localRole.nightAbility)
+        else if (GameManager.Instance.currentPhase == GamePhase.Night && abilityType == localRole.nightAbility1)
         {
             canUse = true;
             usageLimit = localRole.nightAbilityUsageLimit1;
+        }
+        else if (GameManager.Instance.currentPhase == GamePhase.Night && abilityType == localRole.nightAbility2)
+        {
+            canUse = true;
+            usageLimit = localRole.nightAbilityUsageLimit2;
         }
 
         if (!canUse)
@@ -642,7 +743,11 @@ public class RoleManager : MonoBehaviourPunCallbacks
         }
 
         Debug.Log($"Player {actorNumber} executed ability: {abilityType} for role {role.roleName}");
-        GameObject playerObj = PhotonNetwork.CurrentRoom.Players[actorNumber].TagObject as GameObject;
+        GameObject playerObj = PhotonNetwork.CurrentRoom.Players.ContainsKey(actorNumber) ? PhotonNetwork.CurrentRoom.Players[actorNumber].TagObject as GameObject : null;
+        if (playerObj == null && GameManager.Instance.PlayerInfos.ContainsKey(actorNumber))
+        {
+            playerObj = GameManager.Instance.PlayerInfos[actorNumber].gameObject; // Fallback to PlayerInfo gameObject
+        }
         if (playerObj == null)
         {
             Debug.LogWarning($"Player {actorNumber} GameObject not found.");
@@ -670,9 +775,8 @@ public class RoleManager : MonoBehaviourPunCallbacks
                         Debug.LogWarning($"Player {actorNumber} has no bullets to Shoot!");
                         return;
                     }
-                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) && targetActorNumber != actorNumber)
+                    if (targetActorNumber != -1 && (PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) || GameManager.Instance.PlayerInfos.ContainsKey(targetActorNumber)) && targetActorNumber != actorNumber)
                     {
-                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
                         int bulletNumber = vigilanteBullets[actorNumber];
                         BaseAttackLevel attackLevel = bulletNumber == 2 ? BaseAttackLevel.Charged : BaseAttackLevel.Dominant;
                         vigilanteBullets[actorNumber]--;
@@ -680,7 +784,7 @@ public class RoleManager : MonoBehaviourPunCallbacks
                         RecordKillAttempt(actorNumber, currentDay);
                         GameManager.Instance.ResolveAttack(actorNumber, targetActorNumber, new AttackInstance(attackLevel));
 
-                        if (bulletNumber == 2 && playerRoleAssignments.TryGetValue(target.ActorNumber, out RoleAsset targetRole) && targetRole.category == RoleCategory.Dominion)
+                        if (bulletNumber == 2 && playerRoleAssignments.TryGetValue(targetActorNumber, out RoleAsset targetRole) && targetRole.category == RoleCategory.Dominion)
                         {
                             vigilanteBullets[actorNumber] = 0;
                             photonView.RPC("SyncVigilanteBullets", RpcTarget.AllBuffered, actorNumber, 0);
@@ -697,15 +801,14 @@ public class RoleManager : MonoBehaviourPunCallbacks
             case AbilityType.EmergencyCache:
                 if (role.roleName == "Arbiter")
                 {
-                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) && targetActorNumber != actorNumber)
+                    if (targetActorNumber != -1 && (PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) || GameManager.Instance.PlayerInfos.ContainsKey(targetActorNumber)) && targetActorNumber != actorNumber)
                     {
-                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
-                        string result = GetEmergencyCacheResult(target.ActorNumber);
+                        string result = GetEmergencyCacheResult(targetActorNumber);
                         delayedEmergencyCacheResults[actorNumber] = $"Emergency Cache result: {result}";
                         arbiterUsedEmergencyCache[actorNumber] = true;
                         arbiterEmergencyCacheDay[actorNumber] = currentDay;
-                        Debug.Log($"Player {actorNumber} used Emergency Cache on Player {target.ActorNumber}. Result pending.");
-                        if (PhotonNetwork.IsMasterClient && playerRoleAssignments.TryGetValue(target.ActorNumber, out RoleAsset targetRole) && targetRole.category != RoleCategory.Dominion)
+                        Debug.Log($"Player {actorNumber} used Emergency Cache on Player {targetActorNumber}. Result pending.");
+                        if (PhotonNetwork.IsMasterClient && playerRoleAssignments.TryGetValue(targetActorNumber, out RoleAsset targetRole) && targetRole.category != RoleCategory.Dominion)
                         {
                             photonView.RPC("NotifyTargetOfArbiter", RpcTarget.AllBuffered, targetActorNumber, actorNumber, role.roleName);
                         }
@@ -734,9 +837,8 @@ public class RoleManager : MonoBehaviourPunCallbacks
                         Debug.LogWarning($"Player {actorNumber} has no bullets to Shoot!");
                         return;
                     }
-                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) && targetActorNumber != actorNumber)
+                    if (targetActorNumber != -1 && (PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) || GameManager.Instance.PlayerInfos.ContainsKey(targetActorNumber)) && targetActorNumber != actorNumber)
                     {
-                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
                         lastResortBullets[actorNumber]--;
                         photonView.RPC("SyncArbiterBullets", RpcTarget.AllBuffered, actorNumber, lastResortBullets[actorNumber]);
                         RecordKillAttempt(actorNumber, currentDay);
@@ -752,12 +854,11 @@ public class RoleManager : MonoBehaviourPunCallbacks
             case AbilityType.Vision:
                 if (role.roleName == "Sage")
                 {
-                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) && targetActorNumber != actorNumber)
+                    if (targetActorNumber != -1 && (PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) || GameManager.Instance.PlayerInfos.ContainsKey(targetActorNumber)) && targetActorNumber != actorNumber)
                     {
-                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
-                        string result = GetVisionResult(target.ActorNumber, currentDay);
+                        string result = GetVisionResult(targetActorNumber, currentDay);
                         delayedVisionResults[actorNumber] = $"Vision result: {result}";
-                        Debug.Log($"Player {actorNumber} used Vision on Player {target.ActorNumber}. Result pending.");
+                        Debug.Log($"Player {actorNumber} used Vision on Player {targetActorNumber}. Result pending.");
                     }
                     else
                     {
@@ -769,14 +870,13 @@ public class RoleManager : MonoBehaviourPunCallbacks
             case AbilityType.Cache:
                 if (role.roleName == "Oracle")
                 {
-                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) && targetActorNumber != actorNumber)
+                    if (targetActorNumber != -1 && (PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) || GameManager.Instance.PlayerInfos.ContainsKey(targetActorNumber)) && targetActorNumber != actorNumber)
                     {
-                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
-                        string result = GetCacheResult(target.ActorNumber);
+                        string result = GetCacheResult(targetActorNumber);
                         delayedCacheResults[actorNumber] = $"Cache result: {result}";
                         oracleLastCacheDay[actorNumber] = currentDay;
-                        Debug.Log($"Player {actorNumber} used Cache on Player {target.ActorNumber}. Result pending.");
-                        if (PhotonNetwork.IsMasterClient && playerRoleAssignments.TryGetValue(target.ActorNumber, out RoleAsset targetRole) && targetRole.category != RoleCategory.Dominion)
+                        Debug.Log($"Player {actorNumber} used Cache on Player {targetActorNumber}. Result pending.");
+                        if (PhotonNetwork.IsMasterClient && playerRoleAssignments.TryGetValue(targetActorNumber, out RoleAsset targetRole) && targetRole.category != RoleCategory.Dominion)
                         {
                             photonView.RPC("NotifyTargetOfOracle", RpcTarget.AllBuffered, targetActorNumber, actorNumber, role.roleName);
                         }
@@ -805,12 +905,11 @@ public class RoleManager : MonoBehaviourPunCallbacks
                         return;
                     }
                     bool isComplex = synthesisProgress[actorNumber] >= 2;
-                    if ((targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber)) || targetActorNumber == actorNumber)
+                    if ((targetActorNumber != -1 && (PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) || GameManager.Instance.PlayerInfos.ContainsKey(targetActorNumber))) || targetActorNumber == actorNumber)
                     {
-                        Player target = targetActorNumber == actorNumber ? PhotonNetwork.CurrentRoom.Players[actorNumber] : PhotonNetwork.CurrentRoom.Players[targetActorNumber];
                         string defenseLevel = isComplex ? "Fortified" : "Shielded";
                         GameManager.Instance.SetDefenseLevel(targetActorNumber, defenseLevel);
-                        Debug.Log($"Player {actorNumber} administered a {defenseLevel} Serum to Player {target.ActorNumber}.");
+                        Debug.Log($"Player {actorNumber} administered a {defenseLevel} Serum to Player {targetActorNumber}.");
                         if (targetActorNumber == actorNumber)
                         {
                             scientistSelfAdministered[actorNumber] = true;
@@ -859,9 +958,8 @@ public class RoleManager : MonoBehaviourPunCallbacks
             case AbilityType.Enact:
                 if (role.roleName == "Revenant")
                 {
-                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) && targetActorNumber != actorNumber)
+                    if (targetActorNumber != -1 && (PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) || GameManager.Instance.PlayerInfos.ContainsKey(targetActorNumber)) && targetActorNumber != actorNumber)
                     {
-                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
                         string choice = plotChoices.GetValueOrDefault(actorNumber, "Dominant");
                         bool isRampage = choice == "Rampage";
                         BaseAttackLevel attackLevel = isRampage ? BaseAttackLevel.Dominant : BaseAttackLevel.Dominant;
@@ -880,12 +978,11 @@ public class RoleManager : MonoBehaviourPunCallbacks
             case AbilityType.Illuminate:
                 if (role.roleName == "Radiant")
                 {
-                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) && targetActorNumber != actorNumber)
+                    if (targetActorNumber != -1 && (PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) || GameManager.Instance.PlayerInfos.ContainsKey(targetActorNumber)) && targetActorNumber != actorNumber)
                     {
-                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
-                        string result = GetIlluminateResult(target.ActorNumber);
+                        string result = GetIlluminateResult(targetActorNumber);
                         delayedIlluminateResults[actorNumber] = $"Illuminate result: {result}";
-                        Debug.Log($"Player {actorNumber} used Illuminate on Player {target.ActorNumber}. Result pending.");
+                        Debug.Log($"Player {actorNumber} used Illuminate on Player {targetActorNumber}. Result pending.");
                     }
                     else
                     {
@@ -897,9 +994,8 @@ public class RoleManager : MonoBehaviourPunCallbacks
             case AbilityType.Bloodthirst:
                 if (role.roleName == "Traitor")
                 {
-                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) && targetActorNumber != actorNumber)
+                    if (targetActorNumber != -1 && (PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) || GameManager.Instance.PlayerInfos.ContainsKey(targetActorNumber)) && targetActorNumber != actorNumber)
                     {
-                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
                         if (playerRoleAssignments.TryGetValue(targetActorNumber, out RoleAsset targetRole) && targetRole.roleName == "Traitor")
                         {
                             photonView.RPC("RevealTraitors", RpcTarget.All, actorNumber, targetActorNumber);
@@ -933,9 +1029,8 @@ public class RoleManager : MonoBehaviourPunCallbacks
             case AbilityType.Douse:
                 if (role.roleName == "Firebird")
                 {
-                    if (targetActorNumber != -1 && PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber))
+                    if (targetActorNumber != -1 && (PhotonNetwork.CurrentRoom.Players.ContainsKey(targetActorNumber) || GameManager.Instance.PlayerInfos.ContainsKey(targetActorNumber)))
                     {
-                        Player target = PhotonNetwork.CurrentRoom.Players[targetActorNumber];
                         int currentLine = firebirdCurrentLine.GetValueOrDefault(actorNumber, 1);
                         if (!firebirdDousedTargets.ContainsKey(currentLine))
                         {
@@ -958,7 +1053,7 @@ public class RoleManager : MonoBehaviourPunCallbacks
                     {
                         foreach (var target in line.Value)
                         {
-                            if (PhotonNetwork.CurrentRoom.Players.ContainsKey(target))
+                            if (PhotonNetwork.CurrentRoom.Players.ContainsKey(target) || GameManager.Instance.PlayerInfos.ContainsKey(target))
                             {
                                 GameManager.Instance.ResolveAttack(actorNumber, target, new AttackInstance(BaseAttackLevel.Inexorable, false, true));
                             }

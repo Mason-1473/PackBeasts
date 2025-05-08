@@ -38,9 +38,11 @@ public class RoleAsset : ScriptableObject
     public AbilityType dayAbility;
     public AbilityType duskAbility1;
     public AbilityType duskAbility2;
-    public AbilityType nightAbility;
+    public AbilityType nightAbility1;
+    public AbilityType nightAbility2;
     public int dayAbilityUsageLimit1;
     public int duskAbilityUsageLimit1;
     public int duskAbilityUsageLimit2;
     public int nightAbilityUsageLimit1;
+    public int nightAbilityUsageLimit2;
 }

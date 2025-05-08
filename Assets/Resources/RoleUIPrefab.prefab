@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 3220423324527631221}
   - component: {fileID: 5625109810781629406}
   m_Layer: 5
-  m_Name: RoleIconPrefab
+  m_Name: RoleUIPrefab
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

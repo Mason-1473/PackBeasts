@@ -4,7 +4,6 @@ using Photon.Realtime;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine.UI;
 #if TMPRO
 using TMPro;
 #endif
@@ -43,27 +42,35 @@ public class GameManager : MonoBehaviourPunCallbacks
         else
         {
             Destroy(gameObject);
+            return;
         }
 
-        roleManager = FindObjectOfType<RoleManager>();
+        roleManager = FindFirstObjectByType<RoleManager>();
         if (roleManager == null)
         {
             Debug.LogError("RoleManager not found in scene!");
+            return;
         }
+        DontDestroyOnLoad(roleManager.gameObject);
 
         playerInfos = new Dictionary<int, PlayerInfo>();
+        EnsurePhotonView();
+    }
+
+    private void EnsurePhotonView()
+    {
+    PhotonView pv = gameObject.GetComponent<PhotonView>();
+    if (pv == null)
+    {
+        pv = gameObject.AddComponent<PhotonView>();
+        Debug.LogWarning("[GameManager] Added PhotonView component dynamically.");
+    }
+
     }
 
     public void StartGame()
     {
         if (!PhotonNetwork.IsMasterClient) return;
-
-        // Instead of checking for exactly 20 players, allow game to start with any number of players for testing
-        // if (PhotonNetwork.CurrentRoom.PlayerCount != 20)
-        // {
-        //     Debug.LogWarning("Game requires exactly 20 players to start.");
-        //     return;
-        // }
 
         dayCount = 1;
         currentPhase = GamePhase.Day;
@@ -71,7 +78,14 @@ public class GameManager : MonoBehaviourPunCallbacks
         phaseTimeRemaining = discussionPhaseDuration;
         UpdatePhaseUI();
         photonView.RPC("SyncPhase", RpcTarget.AllBuffered, (int)currentPhase, (int)currentSubPhase, dayCount, phaseTimeRemaining);
-        roleManager.AssignRolesToPlayers();
+        if (roleManager != null)
+        {
+            roleManager.AssignRolesToPlayers();
+        }
+        else
+        {
+            Debug.LogError("[GameManager] RoleManager is null! Cannot assign roles.");
+        }
         StartCoroutine(DiscussionPhase());
     }
 
@@ -302,6 +316,23 @@ public class GameManager : MonoBehaviourPunCallbacks
                     info.defenseLevel = "None";
                 }
                 playerInfos[player.ActorNumber] = info;
+                Debug.Log($"[GameManager] Registered player {player.NickName} with ActorNumber: {player.ActorNumber}");
+            }
+        }
+    }
+
+    public void RegisterSimulatedPlayer(GameObject playerObject, int simulatedActorNumber)
+    {
+        if (!playerInfos.ContainsKey(simulatedActorNumber))
+        {
+            PlayerInfo info = playerObject.GetComponent<PlayerInfo>();
+            if (info != null)
+            {
+                info.actorNumber = simulatedActorNumber;
+                info.playerName = "Bot" + simulatedActorNumber;
+                info.defenseLevel = "None";
+                playerInfos[simulatedActorNumber] = info;
+                Debug.Log("[GameManager] Registered simulated player with ActorNumber: " + simulatedActorNumber);
             }
         }
     }
@@ -453,7 +484,6 @@ public class GameManager : MonoBehaviourPunCallbacks
 
         if (attack.isRampage)
         {
-            // Simplified: requires visitor tracking
         }
 
         if (targetInfo.assignedRole.roleName == "Traitor")

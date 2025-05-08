@@ -1,156 +1,165 @@
 using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
-using System.Collections;
 using UnityEngine.SceneManagement;
 
 public class PlayerSimulator : MonoBehaviourPunCallbacks
 {
-    [SerializeField] public bool isSimulationEnabled = false; // Checkbox to enable simulation
-    [SerializeField] private int numberOfPlayers = 19; // Number of simulated bots
-    [SerializeField] private string roomName = "GameRoom_3418";
-    [SerializeField] private GameObject botPrefab; // Assign a prefab for simulated bots
-
-    private int connectedBots = 0;
-    private bool isRoomReady = false;
+    public bool isSimulationEnabled = true;
+    public int botCount = 19; // Keep 19 bots + 1 player = 20 total
+    public GameObject botPrefab;
+    public GameObject playerPrefab;
+    [SerializeField] private string playerPrefabName = "PlayerPrefab";
+    [SerializeField] private string botPrefabName = "BotPrefab";
 
     void Start()
     {
-        if (!isSimulationEnabled) return;
+        Debug.Log("[PlayerSimulator] Subscribing to sceneLoaded event...");
+        SceneManager.sceneLoaded += OnSceneLoaded;
+        DontDestroyOnLoad(gameObject);
+        Debug.Log("[PlayerSimulator] Set to DontDestroyOnLoad.");
 
-        Debug.Log("[PlayerSimulator] Simulation enabled. Connecting to Photon...");
-        if (!PhotonNetwork.IsConnected)
+        if (isSimulationEnabled)
         {
-            PhotonNetwork.ConnectUsingSettings();
-            PhotonNetwork.GameVersion = "1.0";
+            Debug.Log("[PlayerSimulator] Simulation enabled. Connecting to Photon...");
+            if (!PhotonNetwork.IsConnected)
+            {
+                PhotonNetwork.ConnectUsingSettings();
+                PhotonNetwork.GameVersion = "1.0";
+            }
+        }
+
+        // Log all prefabs in Resources to debug
+        Debug.Log("[PlayerSimulator] Listing all prefabs in Resources folder...");
+        GameObject[] allPrefabs = Resources.LoadAll<GameObject>("");
+        foreach (var prefab in allPrefabs)
+        {
+            Debug.Log($"[PlayerSimulator] Found prefab in Resources: {prefab.name}");
+        }
+
+        // Verify prefabs
+        Debug.Log("[PlayerSimulator] Checking playerPrefab...");
+        if (playerPrefab == null)
+        {
+            Debug.Log($"[PlayerSimulator] playerPrefab is null, attempting to load from Resources: {playerPrefabName}");
+            playerPrefab = Resources.Load<GameObject>(playerPrefabName);
+            Debug.Log("[PlayerSimulator] Reloaded playerPrefab: " + (playerPrefab != null ? "Success" : "Failed"));
         }
         else
         {
-            JoinOrCreateRoom();
+            Debug.Log("[PlayerSimulator] playerPrefab already assigned: " + playerPrefab.name);
         }
+
+        Debug.Log("[PlayerSimulator] Checking botPrefab...");
+        if (botPrefab == null)
+        {
+            Debug.Log($"[PlayerSimulator] botPrefab is null, attempting to load from Resources: {botPrefabName}");
+            botPrefab = Resources.Load<GameObject>(botPrefabName);
+            Debug.Log("[PlayerSimulator] Reloaded botPrefab: " + (botPrefab != null ? "Success" : "Failed"));
+        }
+        else
+        {
+            Debug.Log("[PlayerSimulator] botPrefab already assigned: " + botPrefab.name);
+        }
+    }
+
+    void OnDestroy()
+    {
+        Debug.Log("[PlayerSimulator] Unsubscribing from sceneLoaded event...");
+        SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
     public override void OnConnectedToMaster()
     {
-        Debug.Log("[PlayerSimulator] Connected to Master Server. Joining lobby...");
-        PhotonNetwork.JoinLobby();
+        Debug.Log("[PlayerSimulator] Connected to Master Server. Waiting for lobby...");
     }
 
     public override void OnJoinedLobby()
     {
         Debug.Log("[PlayerSimulator] Joined lobby. Creating or joining room...");
-        JoinOrCreateRoom();
-    }
-
-    private void JoinOrCreateRoom()
-    {
-        RoomOptions roomOptions = new RoomOptions
-        {
-            MaxPlayers = (byte)(numberOfPlayers + 1), // +1 for the real player
-            IsVisible = true,
-            IsOpen = true
-        };
-        PhotonNetwork.JoinOrCreateRoom(roomName, roomOptions, null);
+        RoomOptions roomOptions = new RoomOptions { MaxPlayers = 20 };
+        PhotonNetwork.JoinOrCreateRoom("SimulationRoom", roomOptions, TypedLobby.Default);
     }
 
     public override void OnJoinedRoom()
     {
-        Debug.Log("[PlayerSimulator] Joined room: " + PhotonNetwork.CurrentRoom.Name + ". Players: " + PhotonNetwork.CurrentRoom.PlayerCount);
-        if (PhotonNetwork.IsMasterClient)
+        Debug.Log("[PlayerSimulator] Joined room: " + PhotonNetwork.CurrentRoom.Name);
+        if (PhotonNetwork.IsMasterClient && isSimulationEnabled)
         {
-            StartCoroutine(SpawnBotsWithDelay());
+            Debug.Log("[PlayerSimulator] Master Client, loading GameScene. IsMasterClient: " + PhotonNetwork.IsMasterClient + ", Simulation: " + isSimulationEnabled);
+            PhotonNetwork.LoadLevel("GameScene");
         }
         else
         {
-            Debug.Log("[PlayerSimulator] Not the Master Client. Waiting for bots to spawn...");
+            Debug.Log("[PlayerSimulator] Not master client or simulation disabled. IsMasterClient: " + PhotonNetwork.IsMasterClient + ", Simulation: " + isSimulationEnabled);
         }
     }
 
-    private IEnumerator SpawnBotsWithDelay()
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        Debug.Log("[PlayerSimulator] Starting to spawn bots...");
-        for (int i = 0; i < numberOfPlayers; i++)
+        Debug.Log("[PlayerSimulator] OnSceneLoaded triggered for scene: " + scene.name + ", mode: " + mode + ", IsMasterClient: " + PhotonNetwork.IsMasterClient + ", Simulation: " + isSimulationEnabled);
+        if (scene.name == "GameScene" && PhotonNetwork.IsMasterClient && isSimulationEnabled)
         {
-            if (botPrefab == null)
+            Debug.Log("[PlayerSimulator] GameScene loaded. Spawning player and bots...");
+            if (playerPrefab == null)
             {
-                Debug.LogError("[PlayerSimulator] botPrefab is not assigned! Cannot spawn bots.");
-                yield break;
+                Debug.LogError($"[PlayerSimulator] playerPrefab is null! Attempting reload: {playerPrefabName}");
+                playerPrefab = Resources.Load<GameObject>(playerPrefabName);
+                Debug.Log("[PlayerSimulator] Reloaded playerPrefab in OnSceneLoaded: " + (playerPrefab != null ? "Success" : "Failed"));
             }
-
-            GameObject bot = PhotonNetwork.Instantiate(botPrefab.name, Vector3.zero, Quaternion.identity);
-            if (bot != null)
+            if (playerPrefab != null)
             {
-                connectedBots++;
-                Debug.Log("[PlayerSimulator] Spawned bot " + connectedBots + ". Current player count: " + PhotonNetwork.CurrentRoom.PlayerCount);
+                PhotonNetwork.Instantiate(playerPrefab.name, Vector3.zero, Quaternion.identity);
+                Debug.Log("[PlayerSimulator] Player spawned.");
             }
             else
             {
-                Debug.LogWarning("[PlayerSimulator] Failed to spawn bot " + (i + 1));
+                Debug.LogError("[PlayerSimulator] playerPrefab is still null after reload!");
             }
-            yield return new WaitForSeconds(0.1f); // Small delay between spawns
+
+            if (botPrefab == null)
+            {
+                Debug.LogError($"[PlayerSimulator] botPrefab is null! Attempting reload: {botPrefabName}");
+                botPrefab = Resources.Load<GameObject>(botPrefabName);
+                Debug.Log("[PlayerSimulator] Reloaded botPrefab in OnSceneLoaded: " + (botPrefab != null ? "Success" : "Failed"));
+            }
+            if (botPrefab != null)
+            {
+                for (int i = 0; i < botCount; i++)
+                {
+                    GameObject bot = PhotonNetwork.Instantiate(botPrefab.name, Vector3.zero, Quaternion.identity);
+                    bot.name = $"Bot_{i + 1}";
+                    Debug.Log("[PlayerSimulator] Spawned bot: " + bot.name);
+                }
+            }
+            else
+            {
+                Debug.LogError("[PlayerSimulator] botPrefab is still null after reload!");
+            }
+            Debug.Log("[PlayerSimulator] All entities spawned. Starting game...");
+            GameManager gm = FindFirstObjectByType<GameManager>();
+            if (gm != null)
+            {
+                gm.StartGame();
+                Debug.Log("[PlayerSimulator] Game started.");
+            }
+            else
+            {
+                Debug.LogError("[PlayerSimulator] GameManager not found after spawn!");
+            }
+            Debug.Log("[PlayerSimulator] Active players in room: " + PhotonNetwork.CurrentRoom.PlayerCount);
+            RoleManager rm = FindFirstObjectByType<RoleManager>();
+            if (rm != null) Debug.Log("[PlayerSimulator] RoleManager found.");
+            if (gm != null) Debug.Log("[PlayerSimulator] GameManager found.");
         }
-        yield return new WaitForSeconds(1f); // Additional delay to ensure sync
-        CheckRoomReadiness();
+        else
+        {
+            Debug.Log("[PlayerSimulator] Not spawning - Scene: " + scene.name + ", IsMasterClient: " + PhotonNetwork.IsMasterClient + ", Simulation: " + isSimulationEnabled);
+        }
     }
 
     public override void OnPlayerEnteredRoom(Player newPlayer)
     {
-        Debug.Log("[PlayerSimulator] Player entered room. Current player count: " + PhotonNetwork.CurrentRoom.PlayerCount);
-        StartCoroutine(CheckRoomReadinessAfterDelay());
-    }
-
-    private IEnumerator CheckRoomReadinessAfterDelay()
-    {
-        yield return new WaitForSeconds(1f); // Wait for player count to sync
-        CheckRoomReadiness();
-    }
-
-    private void CheckRoomReadiness()
-    {
-        Debug.Log("[PlayerSimulator] Checking room readiness. Current player count: " + PhotonNetwork.CurrentRoom.PlayerCount + ", Connected bots: " + connectedBots + ", Expected: " + (numberOfPlayers + 1));
-        if (connectedBots >= numberOfPlayers && !isRoomReady)
-        {
-            isRoomReady = true;
-            Debug.Log("[PlayerSimulator] Room is full with " + (connectedBots + 1) + " players (1 local + " + connectedBots + " bots). Loading RoleReveal...");
-
-            // Check if RoleReveal is in Build Settings
-            bool sceneFound = false;
-            for (int i = 0; i < SceneManager.sceneCountInBuildSettings; i++)
-            {
-                string scenePath = SceneUtility.GetScenePathByBuildIndex(i);
-                string sceneName = System.IO.Path.GetFileNameWithoutExtension(scenePath);
-                Debug.Log("[PlayerSimulator] Build Settings Scene " + i + ": " + sceneName);
-                if (sceneName == "RoleReveal")
-                {
-                    sceneFound = true;
-                    break;
-                }
-            }
-
-            if (sceneFound)
-            {
-                Debug.Log("[PlayerSimulator] RoleReveal found in Build Settings. Loading via Photon...");
-                PhotonNetwork.LoadLevel("RoleReveal");
-            }
-            else
-            {
-                Debug.LogWarning("[PlayerSimulator] RoleReveal not found in Build Settings. Attempting to load via SceneManager...");
-                SceneManager.LoadScene("RoleReveal");
-            }
-        }
-        else
-        {
-            Debug.Log("[PlayerSimulator] Room not full yet. Connected bots: " + connectedBots + ", Expected: " + numberOfPlayers);
-        }
-    }
-
-    public override void OnDisconnected(DisconnectCause cause)
-    {
-        Debug.Log("[PlayerSimulator] Disconnected: " + cause);
-        if (cause == DisconnectCause.MaxCcuReached)
-        {
-            Debug.LogWarning("Max CCU reached. Returning to MainMenu...");
-            SceneManager.LoadScene("MainMenu");
-        }
+        Debug.Log("[PlayerSimulator] Player entered room: " + newPlayer.NickName);
     }
 }
